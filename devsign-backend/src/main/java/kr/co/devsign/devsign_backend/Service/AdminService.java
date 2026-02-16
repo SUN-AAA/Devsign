@@ -1,5 +1,6 @@
 package kr.co.devsign.devsign_backend.Service;
 
+import kr.co.devsign.devsign_backend.Entity.AccessLog;
 import kr.co.devsign.devsign_backend.Entity.Member;
 import kr.co.devsign.devsign_backend.Repository.AccessLogRepository;
 import kr.co.devsign.devsign_backend.Repository.MemberRepository;
@@ -31,7 +32,7 @@ public class AdminService {
         return memberRepository.findAllByOrderByStudentIdDesc();
     }
 
-    public List<?> getAllLogs() {
+    public List<AccessLog> getAllLogs() {
         return accessLogRepository.findAllByOrderByTimestampDesc();
     }
 
