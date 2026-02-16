@@ -2,6 +2,9 @@ package kr.co.devsign.devsign_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @SpringBootApplication
 public class DevsignBackendApplication {
@@ -10,4 +13,13 @@ public class DevsignBackendApplication {
 		SpringApplication.run(DevsignBackendApplication.class, args);
 	}
 
+	@Bean
+	public RestTemplate RestTemplate() {
+		return new RestTemplate();
+	}
+
+	@Bean
+	public BCryptPasswordEncoder BCryptPasswordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
 }
