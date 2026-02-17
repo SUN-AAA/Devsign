@@ -20,8 +20,8 @@ class MemberInsertTest {
     void insertMembers() {
         // 1) 일반 유저
         Member user = new Member();
-        user.setLoginId("user"); // ★ unique
-        user.setPassword(passwordEncoder.encode("user1234@")); // 평문 금지, 반드시 인코딩
+        user.setLoginId("user");
+        user.setPassword(passwordEncoder.encode("user1234@"));
         user.setName("테스트유저");
         user.setStudentId("20251234");
         user.setDept("AI소프트웨어학부 컴퓨터공학 전공");
@@ -33,6 +33,21 @@ class MemberInsertTest {
         user.setProfileImage(null);
 
         memberRepository.save(user);
+
+        Member user2 = new Member();
+        user2.setLoginId("user2"); // ★ unique
+        user2.setPassword(passwordEncoder.encode("user1234@"));
+        user2.setName("테스트유저2");
+        user2.setStudentId("20241234");
+        user2.setDept("AI소프트웨어학부 정보통신공학 전공");
+        user2.setInterests("Spring, React");
+        user2.setDiscordTag("testuser#0002");
+        user2.setUserStatus("재학생");
+        user2.setRole("USER");
+        user2.setSuspended(false);
+        user2.setProfileImage(null);
+
+        memberRepository.save(user2);
 
         // 2) 관리자
         Member admin = new Member();
