@@ -13,13 +13,4 @@ public class DevsignBackendApplication {
 		SpringApplication.run(DevsignBackendApplication.class, args);
 	}
 
-	@Bean
-	public RestTemplate RestTemplate() {
-		return new RestTemplate();
-	}
-
-	@Bean
-	public BCryptPasswordEncoder BCryptPasswordEncoder() {
-		return new BCryptPasswordEncoder();
-	}
 }
