@@ -31,6 +31,7 @@ npm i
 npm run dev
 ```
 
+
 ### Backend
 **1. 레포 클론 및 경로 설정**
 ```
@@ -38,6 +39,7 @@ https://github.com/SUN-AAA/Devsign_Backend
 cd devsign-backend
 ```
 **2. application.properties 설정 (DB 설정)**
+- 사전에 MySQL 스키마 생성 필요
 ```
 spring.application.name=devsign-backend
 
