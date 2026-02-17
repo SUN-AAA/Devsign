@@ -32,7 +32,7 @@ npm run dev
 ```
 
 ### Backend
-**1. 레포 클론**
+**1. 레포 클론 및 경로 설정**
 ```
 https://github.com/SUN-AAA/Devsign_Backend
 cd devsign-backend
