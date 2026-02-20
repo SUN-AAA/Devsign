@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios"; 
+import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
@@ -28,22 +28,22 @@ import { EventWrite } from "./pages/EventWrite";
 
 import { BoardPage } from "./pages/BoardPage";
 import { BoardWrite } from "./pages/BoardWrite";
-import { BoardDetail } from "./pages/BoardDetail"; 
+import { BoardDetail } from "./pages/BoardDetail";
 import { AssemblyPage } from "./pages/AssemblyPage";
-import { AdminPage } from "./pages/AdminPage"; 
+import { AdminPage } from "./pages/AdminPage";
 import { MemberDetailTab } from "./pages/tabs/MemberDetailTab";
 
 function App() {
   const [currentPage, setCurrentPage] = useState(() => localStorage.getItem("currentPage") || "home");
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem("isLoggedIn") === "true");
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem("isAdmin") === "true");
-  
+
   const [currentUser, setCurrentUser] = useState<any>(() => {
     const savedUser = localStorage.getItem("currentUser");
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  const [userStatus, setUserStatus] = useState("ATTENDING"); 
+  const [userStatus, setUserStatus] = useState("ATTENDING");
 
   const [selectedMemberLoginId, setSelectedMemberLoginId] = useState<string | null>(() => {
     return localStorage.getItem("selectedMemberLoginId");
@@ -54,7 +54,7 @@ function App() {
     return saved ? Number(saved) : null;
   });
   const [selectedEventId, setSelectedEventId] = useState<number | null>(() => {
-    const saved = localStorage.getItem("selectedEventId"); 
+    const saved = localStorage.getItem("selectedEventId");
     return saved ? Number(saved) : null;
   });
   const [selectedPostId, setSelectedPostId] = useState<number | null>(() => {
@@ -68,9 +68,9 @@ function App() {
 
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use((config) => {
-      const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
-      if (user && user.loginId) {
-        config.headers["X-User-LoginId"] = user.loginId;
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
       }
       return config;
     });
@@ -122,7 +122,7 @@ function App() {
     localStorage.clear();
     handleNavigate("home");
     if (isForced) {
-        window.location.href = "/";
+      window.location.href = "/";
     }
   };
 
@@ -279,8 +279,8 @@ function App() {
     if (pageId === "member-detail") setSelectedMemberLoginId(itemId || null);
     else if (pageId.startsWith("notice-")) setSelectedNoticeId(itemId || null);
     else if (pageId.startsWith("event-")) setSelectedEventId(itemId || null);
-    else if (pageId.startsWith("board-detail") || pageId === "board-write") setSelectedPostId(itemId || null); 
-    
+    else if (pageId.startsWith("board-detail") || pageId === "board-write") setSelectedPostId(itemId || null);
+
     if (mainSections.includes(pageId)) {
       if (currentPage !== "home" && !mainSections.includes(currentPage)) {
         setCurrentPage("home");
@@ -331,22 +331,22 @@ function App() {
   return (
     <div className="min-h-screen bg-white font-sans selection:bg-indigo-100 selection:text-indigo-700">
       {!hideLayout.includes(currentPage) && (
-        <Navbar 
-          onNavigate={handleNavigate} 
-          currentPage={currentPage} 
-          isLoggedIn={isLoggedIn} 
-          onLogout={() => handleLogout(false)} 
-          userRole={isAdmin ? "ADMIN" : "USER"} 
+        <Navbar
+          onNavigate={handleNavigate}
+          currentPage={currentPage}
+          isLoggedIn={isLoggedIn}
+          onLogout={() => handleLogout(false)}
+          userRole={isAdmin ? "ADMIN" : "USER"}
         />
       )}
-      
+
       <main>
         {(mainSections.includes(currentPage) || currentPage === "home") ? (
           <>
             <div id="home"><Hero isAdmin={isAdmin && isLoggedIn} /></div>
             <div id="events" className="scroll-mt-20"><Events onNavigate={handleNavigate} events={events.slice(0, 3)} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} /></div>
             <div id="notice" className="scroll-mt-20"><Notice onNavigate={handleNavigate} notices={notices} /></div>
-            
+
             {/* ✨ 분리된 Board 섹션 사용 */}
             <Board onNavigate={handleNavigate} posts={homeDisplayPosts} />
 
@@ -355,9 +355,9 @@ function App() {
           </>
         ) : (
           <AnimatePresence mode="wait">
-              {currentPage === "login" ? (
-                <Login onNavigate={handleNavigate} onLoginSuccess={(userData) => { setIsLoggedIn(true); setIsAdmin(userData.role === "ADMIN"); setCurrentUser(userData); handleNavigate("home"); }} key="login" />
-              ) : currentPage === "signup" ? (
+            {currentPage === "login" ? (
+              <Login onNavigate={handleNavigate} onLoginSuccess={(userData) => { setIsLoggedIn(true); setIsAdmin(userData.role === "ADMIN"); setCurrentUser(userData); handleNavigate("home"); }} key="login" />
+            ) : currentPage === "signup" ? (
               <Signup onNavigate={handleNavigate} key="signup" />
             ) : currentPage === "find-account" ? (
               <FindAccount onNavigate={handleNavigate} key="find-account" />
@@ -368,11 +368,11 @@ function App() {
             ) : currentPage === "assembly" ? (
               <AssemblyPage isAdmin={isAdmin} userStatus={userStatus} onNavigate={handleNavigate} loginId={currentUser?.loginId} />
             ) : currentPage === "member-detail" ? (
-              <MemberDetailTab 
-                loginId={selectedMemberLoginId!} 
-                onBack={() => handleNavigate("assembly")} 
+              <MemberDetailTab
+                loginId={selectedMemberLoginId!}
+                onBack={() => handleNavigate("assembly")}
               />
-            ) : currentPage === "admin" ? ( 
+            ) : currentPage === "admin" ? (
               <AdminPage />
             ) : currentPage === "contact-admin" ? (
               <ContactAdmin onNavigate={handleNavigate} key="contact-admin" />
@@ -381,27 +381,27 @@ function App() {
             ) : currentPage === "board-write" ? (
               <BoardWrite onNavigate={handleNavigate} isAdmin={isAdmin && isLoggedIn} user={currentUser} fetchPosts={fetchData} post={posts.find(p => Number(p.id) === Number(selectedPostId))} key="board-write" />
             ) : currentPage === "board-detail" ? (
-              <BoardDetail 
-                onNavigate={handleNavigate} 
-                post={posts.find(p => Number(p.id) === Number(selectedPostId))} 
-                isAdmin={isAdmin && isLoggedIn} 
-                isLoggedIn={isLoggedIn} 
-                user={currentUser} 
-                setPost={(updated: any) => setPosts(prev => prev.map(p => p.id === updated.id ? updated : p))} 
-                onDelete={handleDeletePost} 
+              <BoardDetail
+                onNavigate={handleNavigate}
+                post={posts.find(p => Number(p.id) === Number(selectedPostId))}
+                isAdmin={isAdmin && isLoggedIn}
+                isLoggedIn={isLoggedIn}
+                user={currentUser}
+                setPost={(updated: any) => setPosts(prev => prev.map(p => p.id === updated.id ? updated : p))}
+                onDelete={handleDeletePost}
                 onToggleLike={handleToggleLike}
-                onAddComment={handleAddComment} 
+                onAddComment={handleAddComment}
                 onDeleteComment={handleDeleteComment}
                 onToggleCommentLike={handleToggleCommentLike}
                 onAddReply={handleAddReply}
-                key="board-detail" 
+                key="board-detail"
               />
             ) : currentPage === "notice-page" ? (
               <NoticePage onNavigate={handleNavigate} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} notices={notices} user={currentUser} fetchNotices={fetchData} key="notice-page" />
             ) : currentPage === "notice-detail" ? (
               <NoticeDetail onNavigate={handleNavigate} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} notice={notices.find(n => n.id === selectedNoticeId)} user={currentUser} setNotice={(updated: any) => setNotices(prev => prev.map(n => n.id === updated.id ? updated : n))} onDelete={handleDeleteNotice} key="notice-detail" />
             ) : currentPage === "notice-write" ? (
-              (isAdmin && isLoggedIn) ? ( 
+              (isAdmin && isLoggedIn) ? (
                 <NoticeWrite onNavigate={handleNavigate} notice={notices.find(n => n.id === selectedNoticeId)} user={currentUser} fetchNotices={fetchData} key="notice-write" />
               ) : (
                 <div className="pt-40 text-center h-screen bg-slate-50">{useEffect(() => { alert("간부진만 접근 가능한 페이지입니다."); handleNavigate("home"); }, [])}</div>
@@ -411,7 +411,7 @@ function App() {
             ) : currentPage === "event-detail" ? (
               <EventDetail onNavigate={handleNavigate} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} event={events.find(e => e.id === selectedEventId)} onDelete={handleDeleteEvent} user={currentUser} setEvent={(updatedEvent: any) => { setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e)); }} key="event-detail" />
             ) : currentPage === "event-write" ? (
-              (isAdmin && isLoggedIn) ? ( 
+              (isAdmin && isLoggedIn) ? (
                 <EventWrite onNavigate={handleNavigate} event={events.find(e => e.id === selectedEventId)} user={currentUser} fetchEvents={fetchData} key="event-write" />
               ) : (
                 <div className="pt-40 text-center h-screen bg-slate-50">{useEffect(() => { alert("간부진만 접근 가능한 페이지입니다."); handleNavigate("home"); }, [])}</div>

@@ -25,7 +25,7 @@ public class MemberController {
 
     @PostMapping("/login")
     public Map<String, Object> login(@RequestBody Member loginRequest, HttpServletRequest request) {
-        return memberService.login(loginRequest, request.getRemoteAddr());
+        return memberService.login(loginRequest, request);
     }
 
     @PostMapping("/logout-log")

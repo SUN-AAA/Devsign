@@ -1,12 +1,19 @@
 package kr.co.devsign.devsign_backend.Service;
 
+import jakarta.servlet.http.HttpServletRequest;
+import kr.co.devsign.devsign_backend.Entity.AccessLog;
 import kr.co.devsign.devsign_backend.Entity.DiscordAuth;
 import kr.co.devsign.devsign_backend.Entity.Member;
+import kr.co.devsign.devsign_backend.Repository.AccessLogRepository;
 import kr.co.devsign.devsign_backend.Repository.DiscordAuthRepository;
 import kr.co.devsign.devsign_backend.Repository.MemberRepository;
+
+import kr.co.devsign.devsign_backend.Util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,6 +23,14 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class MemberService {
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private AccessLogRepository accessLogRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
 
     private final MemberRepository memberRepository;
     private final DiscordAuthRepository discordAuthRepository;
@@ -54,47 +69,56 @@ public class MemberService {
         return saved;
     }
 
-    public Map<String, Object> login(Member loginRequest, String ip) {
+    public Map<String, Object> login(Member loginRequest, HttpServletRequest request) {
         Optional<Member> memberOpt = memberRepository.findByLoginId(loginRequest.getLoginId());
         Map<String, Object> response = new HashMap<>();
 
-        if (memberOpt.isEmpty() || !passwordEncoder.matches(loginRequest.getPassword(), memberOpt.get().getPassword())) {
+        if (memberOpt.isPresent() && passwordEncoder.matches(loginRequest.getPassword(), memberOpt.get().getPassword())) {
+            Member m = memberOpt.get();
+
+            if (m.isSuspended()) {
+                response.put("status", "suspended");
+                response.put("message", "정지된 아이디 입니다. 관리자에게 문의하세요.");
+                return response;
+            }
+
+            // JWT 토큰 생성
+            String token = jwtUtil.generateToken(m.getLoginId(), m.getRole());
+
+            AccessLog log = new AccessLog();
+            log.setName(m.getName());
+            log.setStudentId(m.getStudentId());
+            log.setType("LOGIN");
+            log.setIp(request.getRemoteAddr());
+            accessLogRepository.save(log);
+
+            response.put("status", "success");
+            response.put("token", token); // JWT 토큰 추가
+            response.put("role", m.getRole());
+            response.put("userStatus", m.getUserStatus());
+            response.put("name", m.getName());
+            response.put("loginId", m.getLoginId());
+            response.put("studentId", m.getStudentId());
+            response.put("dept", m.getDept());
+            response.put("discordTag", m.getDiscordTag());
+
+            try {
+                String botUrl = "http://127.0.0.1:8000/get-avatar/" + m.getDiscordTag();
+                Map<String, Object> botResponse = restTemplate.getForObject(botUrl, Map.class);
+                if (botResponse != null && "success".equals(botResponse.get("status"))) {
+                    response.put("avatarUrl", botResponse.get("avatarUrl"));
+                } else {
+                    response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
+                }
+            } catch (Exception e) {
+                response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
+            }
+            return response;
+        } else {
             response.put("status", "fail");
             response.put("message", "아이디 또는 비밀번호가 일치하지 않습니다.");
             return response;
         }
-
-        Member m = memberOpt.get();
-
-        if (m.isSuspended()) {
-            response.put("status", "suspended");
-            response.put("message", "정지된 아이디 입니다. 관리자에게 문의하세요.");
-            return response;
-        }
-
-        accessLogService.logByMember(m, "LOGIN", ip);
-
-        response.put("status", "success");
-        response.put("role", m.getRole());
-        response.put("userStatus", m.getUserStatus());
-        response.put("name", m.getName());
-        response.put("loginId", m.getLoginId());
-        response.put("studentId", m.getStudentId());
-        response.put("dept", m.getDept());
-        response.put("discordTag", m.getDiscordTag());
-
-        try {
-            Map<String, Object> botRes = discordBotClient.getAvatar(m.getDiscordTag());
-            if (botRes != null && "success".equals(botRes.get("status"))) {
-                response.put("avatarUrl", botRes.get("avatarUrl"));
-            } else {
-                response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
-            }
-        } catch (Exception e) {
-            response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
-        }
-
-        return response;
     }
 
     public Map<String, Object> logoutLog(Map<String, String> requestData, String ip) {
