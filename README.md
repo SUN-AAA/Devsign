@@ -1,4 +1,4 @@
-# Devsign_Backend
+# Devsign
 
 ## Spring Initializr setting
 1. Project : `Gradle - Groovy`
@@ -19,7 +19,7 @@
 ### Frontend
 **1. 레포 클론 및 경로 설정**
 ```
-git clone https://github.com/SUN-AAA/Devsign_Backend
+git clone https://github.com/SUN-AAA/Devsign
 cd frontend
 ```
 **2. 의존성 설치**
@@ -35,7 +35,7 @@ npm run dev
 ### Backend
 **1. 레포 클론 및 경로 설정**
 ```
-git clone https://github.com/SUN-AAA/Devsign_Backend
+git clone https://github.com/SUN-AAA/Devsign
 cd devsign-backend
 ```
 **2. application.properties 설정 (DB 설정)**
