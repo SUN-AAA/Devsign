@@ -218,6 +218,9 @@ export const AdminPage = () => {
     });
   };
 
+  const isAdminMember = (member: Member) =>
+    String(member.role || "").trim().toUpperCase().includes("ADMIN");
+
   const handleDiscordSync = async () => {
     setIsSyncing(true);
     try {
@@ -348,10 +351,11 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <MemberTable title="재학 부원" icon={School} data={members.filter(m => m.userStatus === "재학생")} colorClass="text-green-600" />
-            <MemberTable title="LAB / 대학원" icon={BookOpen} data={members.filter(m => m.userStatus === "LAB" || m.userStatus === "대학원")} colorClass="text-indigo-600" />
-            <MemberTable title="휴학 부원" icon={Coffee} data={members.filter(m => m.userStatus === "휴학생")} colorClass="text-amber-600" />
-            <MemberTable title="졸업 / 기타" icon={GraduationCap} data={members.filter(m => m.userStatus === "졸업생" || m.userStatus === "일반")} colorClass="text-slate-400" />
+            <MemberTable title="관리자" icon={ShieldCheck} data={members.filter(m => isAdminMember(m))} colorClass="text-indigo-600" />
+            <MemberTable title="재학 부원" icon={School} data={members.filter(m => m.userStatus === "재학생" && !isAdminMember(m))} colorClass="text-green-600" />
+            <MemberTable title="LAB / 대학원" icon={BookOpen} data={members.filter(m => (m.userStatus === "LAB" || m.userStatus === "대학원") && !isAdminMember(m))} colorClass="text-indigo-600" />
+            <MemberTable title="휴학 부원" icon={Coffee} data={members.filter(m => m.userStatus === "휴학생" && !isAdminMember(m))} colorClass="text-amber-600" />
+            <MemberTable title="졸업 / 기타" icon={GraduationCap} data={members.filter(m => (m.userStatus === "졸업생" || m.userStatus === "일반") && !isAdminMember(m))} colorClass="text-slate-400" />
 
             {searchQuery !== "" && getFilteredAndSortedMembers(members).length === 0 && (
               <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
