@@ -62,7 +62,6 @@ spring.jpa.properties.hibernate.format_sql=true
 
 `DevsignBackendApplication` 실행
 
----
 
 ## API Guide
  
@@ -81,7 +80,6 @@ spring.jpa.properties.hibernate.format_sql=true
 | Assembly | `/api/assembly` | - | 전체 | - |
 | Admin | `/api/admin` | - | - | 전체 (`ROLE_ADMIN`) |
 
----
 
 ### 2. 인증/권한 정책
 
@@ -116,7 +114,6 @@ spring.jpa.properties.hibernate.format_sql=true
 
 - 위에 명시되지 않은 API는 인증 필요
 
----
 
 ### 3. 공통 규약
 
@@ -145,7 +142,6 @@ Content-Type: application/json
 | size 초과 | `413 Payload Too Large` |
 | multipart 포맷 오류 | `400 Bad Request` |
 
----
 
 ### 4. Members API
 
@@ -187,7 +183,6 @@ Content-Type: application/json
 }
 ```
 
----
 
 ### 5. Board API
 
@@ -220,7 +215,6 @@ Content-Type: application/json
 }
 ```
 
----
 
 ### 6. Notice API
 
@@ -235,7 +229,6 @@ Base: `/api/notices`
 | DELETE | `/{id}` | Auth | - | `StatusResponse` |
 | PUT | `/{id}/pin` | Auth | - | `NoticePinResponse` |
 
----
 
 ### 7. Event API
 
@@ -250,7 +243,6 @@ Base: `/api/events`
 | DELETE | `/{id}` | Auth | - | `StatusResponse` |
 | POST | `/{id}/like` | Auth | - | `EventLikeResponse` |
 
----
 
 ### 8. Assembly API
 
@@ -293,7 +285,6 @@ curl -X POST "http://localhost:8080/api/assembly/submit" \
   -F "presentation=@./plan.pptx"
 ```
 
----
 
 ### 9. Admin API (`ROLE_ADMIN`)
 
@@ -322,7 +313,6 @@ Base: `/api/admin`
 | `ppt` | 발표자료(ppt/pptx)만 |
 | `pdf` | PDF만 |
 
----
 
 ### 10. DTO
 
@@ -350,7 +340,6 @@ SubmitFilesResponse: status, message
 SubmissionPeriodResponse: id, month, year, semester, type, startDate, endDate
 MySubmissionsResponse: reports[], projectTitle
 ```
----
 
 ## 디렉토리 구조
 ```
