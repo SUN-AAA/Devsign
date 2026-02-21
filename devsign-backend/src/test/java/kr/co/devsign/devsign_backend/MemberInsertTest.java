@@ -1,7 +1,7 @@
 package kr.co.devsign.devsign_backend;
 
-import kr.co.devsign.devsign_backend.Entity.Member;
-import kr.co.devsign.devsign_backend.Repository.MemberRepository;
+import kr.co.devsign.devsign_backend.entity.Member;
+import kr.co.devsign.devsign_backend.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
