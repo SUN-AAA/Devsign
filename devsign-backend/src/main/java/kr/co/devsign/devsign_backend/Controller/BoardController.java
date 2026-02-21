@@ -1,18 +1,20 @@
 package kr.co.devsign.devsign_backend.Controller;
 
 import jakarta.servlet.http.HttpServletRequest;
-import kr.co.devsign.devsign_backend.Entity.Post;
 import kr.co.devsign.devsign_backend.Service.BoardService;
 import kr.co.devsign.devsign_backend.Util.JwtUtil;
+import kr.co.devsign.devsign_backend.dto.board.CreateCommentRequest;
+import kr.co.devsign.devsign_backend.dto.board.CreatePostRequest;
+import kr.co.devsign.devsign_backend.dto.board.PostResponse;
+import kr.co.devsign.devsign_backend.dto.board.UpdatePostRequest;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/posts")
-
 @RequiredArgsConstructor
 public class BoardController {
 
@@ -20,30 +22,30 @@ public class BoardController {
     private final JwtUtil jwtUtil;
 
     @GetMapping
-    public List<Post> getAllPosts() {
+    public List<PostResponse> getAllPosts() {
         return boardService.getAllPosts();
     }
 
     @PostMapping
-    public Post createPost(@RequestBody Map<String, Object> payload, HttpServletRequest request) {
+    public PostResponse createPost(@RequestBody CreatePostRequest payload, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return boardService.createPost(payload, loginId, request.getRemoteAddr());
     }
 
     @GetMapping("/{id}")
-    public Post getPostDetail(@PathVariable Long id, HttpServletRequest request) {
+    public PostResponse getPostDetail(@PathVariable Long id, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return boardService.getPostDetail(id, loginId);
     }
 
     @PutMapping("/{id}")
-    public Post updatePost(@PathVariable Long id, @RequestBody Map<String, Object> payload, HttpServletRequest request) {
+    public PostResponse updatePost(@PathVariable Long id, @RequestBody UpdatePostRequest payload, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return boardService.updatePost(id, payload, loginId, request.getRemoteAddr());
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, String> deletePost(
+    public StatusResponse deletePost(
             @PathVariable Long id,
             HttpServletRequest request
     ) {
@@ -52,7 +54,7 @@ public class BoardController {
     }
 
     @PostMapping("/{id}/like")
-    public Post toggleLike(
+    public PostResponse toggleLike(
             @PathVariable Long id,
             HttpServletRequest request
     ) {
@@ -61,9 +63,9 @@ public class BoardController {
     }
 
     @PostMapping("/{id}/comments")
-    public Post addComment(
+    public PostResponse addComment(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload,
+            @RequestBody CreateCommentRequest payload,
             HttpServletRequest request
     ) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
@@ -71,7 +73,7 @@ public class BoardController {
     }
 
     @DeleteMapping("/{postId}/comments/{commentId}")
-    public Post deleteComment(
+    public PostResponse deleteComment(
             @PathVariable Long postId,
             @PathVariable Long commentId,
             HttpServletRequest request
@@ -81,7 +83,7 @@ public class BoardController {
     }
 
     @PostMapping("/{postId}/comments/{commentId}/like")
-    public Post toggleCommentLike(
+    public PostResponse toggleCommentLike(
             @PathVariable Long postId,
             @PathVariable Long commentId,
             HttpServletRequest request

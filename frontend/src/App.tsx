@@ -209,11 +209,14 @@ function AppContent() {
     } else if (path === "event-detail" && param) {
       navigate(`/event/${param}`);
     } else if (path === "notice-write") {
-      navigate("/notice/write");
+      if (param) navigate(`/notice/write/${param}`);
+      else navigate("/notice/write");
     } else if (path === "board-write") {
-      navigate("/board/write");
+      if (param) navigate(`/board/write/${param}`);
+      else navigate("/board/write");
     } else if (path === "event-write") {
-      navigate("/event/write");
+      if (param) navigate(`/event/write/${param}`);
+      else navigate("/event/write");
     } else if (path === "member-detail" && param) {
       navigate(`/assembly/member/${param}`);
     } else if (path === "board" || path === "board-page") {
@@ -260,15 +263,18 @@ function AppContent() {
           <Route path="/contact-admin" element={<ContactAdmin onNavigate={handleNavigateCompat} />} />
 
           <Route path="/board" element={<BoardPage onNavigate={handleNavigateCompat} posts={posts} isAdmin={isAdmin && isLoggedIn} user={currentUser} setPosts={setPosts} />} />
-          <Route path="/board/write" element={<BoardWrite onNavigate={handleNavigateCompat} isAdmin={isAdmin && isLoggedIn} user={currentUser} fetchPosts={fetchData} post={undefined} />} />
+          <Route path="/board/write" element={<BoardWriteWrapper posts={posts} onNavigate={handleNavigateCompat} isAdmin={isAdmin && isLoggedIn} user={currentUser} fetchPosts={fetchData} />} />
+          <Route path="/board/write/:id" element={<BoardWriteWrapper posts={posts} onNavigate={handleNavigateCompat} isAdmin={isAdmin && isLoggedIn} user={currentUser} fetchPosts={fetchData} />} />
           <Route path="/board/:id" element={<BoardDetailWrapper posts={posts} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} user={currentUser} setPosts={setPosts} onDelete={handleDeletePost} onToggleLike={handleToggleLike} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onToggleCommentLike={handleToggleCommentLike} onAddReply={handleAddReply} handleNavigateCompat={handleNavigateCompat} />} />
 
           <Route path="/notice" element={<NoticePage onNavigate={handleNavigateCompat} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} notices={notices} user={currentUser} fetchNotices={fetchData} />} />
-          <Route path="/notice/write" element={(isAdmin && isLoggedIn) ? <NoticeWrite onNavigate={handleNavigateCompat} notice={undefined} user={currentUser} fetchNotices={fetchData} /> : <Navigate to="/" replace />} />
+          <Route path="/notice/write" element={(isAdmin && isLoggedIn) ? <NoticeWriteWrapper notices={notices} onNavigate={handleNavigateCompat} user={currentUser} fetchNotices={fetchData} /> : <Navigate to="/" replace />} />
+          <Route path="/notice/write/:id" element={(isAdmin && isLoggedIn) ? <NoticeWriteWrapper notices={notices} onNavigate={handleNavigateCompat} user={currentUser} fetchNotices={fetchData} /> : <Navigate to="/" replace />} />
           <Route path="/notice/:id" element={<NoticeDetailWrapper notices={notices} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} user={currentUser} setNotices={setNotices} onDelete={handleDeleteNotice} handleNavigateCompat={handleNavigateCompat} />} />
 
           <Route path="/event" element={<EventPage onNavigate={handleNavigateCompat} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} events={events} user={currentUser} setEvents={setEvents} />} />
-          <Route path="/event/write" element={(isAdmin && isLoggedIn) ? <EventWrite onNavigate={handleNavigateCompat} event={undefined} user={currentUser} fetchEvents={fetchData} /> : <Navigate to="/" replace />} />
+          <Route path="/event/write" element={(isAdmin && isLoggedIn) ? <EventWriteWrapper events={events} onNavigate={handleNavigateCompat} user={currentUser} fetchEvents={fetchData} /> : <Navigate to="/" replace />} />
+          <Route path="/event/write/:id" element={(isAdmin && isLoggedIn) ? <EventWriteWrapper events={events} onNavigate={handleNavigateCompat} user={currentUser} fetchEvents={fetchData} /> : <Navigate to="/" replace />} />
           <Route path="/event/:id" element={<EventDetailWrapper events={events} isAdmin={isAdmin && isLoggedIn} isLoggedIn={isLoggedIn} user={currentUser} setEvents={setEvents} onDelete={handleDeleteEvent} handleNavigateCompat={handleNavigateCompat} />} />
 
           <Route path="*" element={
@@ -295,16 +301,34 @@ function BoardDetailWrapper({ posts, isAdmin, isLoggedIn, user, setPosts, onDele
   return <BoardDetail onNavigate={handleNavigateCompat} post={post} isAdmin={isAdmin} isLoggedIn={isLoggedIn} user={user} setPost={(updated: any) => setPosts((prev: any) => prev.map((p: any) => p.id === updated.id ? updated : p))} onDelete={onDelete} onToggleLike={onToggleLike} onAddComment={onAddComment} onDeleteComment={onDeleteComment} onToggleCommentLike={onToggleCommentLike} onAddReply={onAddReply} />;
 }
 
+function BoardWriteWrapper({ posts, onNavigate, isAdmin, user, fetchPosts }: any) {
+  const { id } = useParams();
+  const post = id ? posts.find((p: any) => Number(p.id) === Number(id)) : undefined;
+  return <BoardWrite onNavigate={onNavigate} isAdmin={isAdmin} user={user} fetchPosts={fetchPosts} post={post} />;
+}
+
 function NoticeDetailWrapper({ notices, isAdmin, isLoggedIn, user, setNotices, onDelete, handleNavigateCompat }: any) {
   const { id } = useParams();
   const notice = notices.find((n: any) => Number(n.id) === Number(id));
   return <NoticeDetail onNavigate={handleNavigateCompat} isAdmin={isAdmin} isLoggedIn={isLoggedIn} notice={notice} user={user} setNotice={(updated: any) => setNotices((prev: any) => prev.map((n: any) => n.id === updated.id ? updated : n))} onDelete={onDelete} />;
 }
 
+function NoticeWriteWrapper({ notices, onNavigate, user, fetchNotices }: any) {
+  const { id } = useParams();
+  const notice = id ? notices.find((n: any) => Number(n.id) === Number(id)) : undefined;
+  return <NoticeWrite onNavigate={onNavigate} notice={notice} user={user} fetchNotices={fetchNotices} />;
+}
+
 function EventDetailWrapper({ events, isAdmin, isLoggedIn, user, setEvents, onDelete, handleNavigateCompat }: any) {
   const { id } = useParams();
   const event = events.find((e: any) => Number(e.id) === Number(id));
   return <EventDetail onNavigate={handleNavigateCompat} isAdmin={isAdmin} isLoggedIn={isLoggedIn} event={event} onDelete={onDelete} user={user} setEvent={(updatedEvent: any) => { setEvents((prev: any) => prev.map((e: any) => e.id === updatedEvent.id ? updatedEvent : e)); }} />;
+}
+
+function EventWriteWrapper({ events, onNavigate, user, fetchEvents }: any) {
+  const { id } = useParams();
+  const event = id ? events.find((e: any) => Number(e.id) === Number(id)) : undefined;
+  return <EventWrite onNavigate={onNavigate} event={event} user={user} fetchEvents={fetchEvents} />;
 }
 
 function App() {

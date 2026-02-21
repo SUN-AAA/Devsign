@@ -1,18 +1,33 @@
 package kr.co.devsign.devsign_backend.Service;
 
-import kr.co.devsign.devsign_backend.Entity.*;
-import kr.co.devsign.devsign_backend.Repository.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import kr.co.devsign.devsign_backend.Entity.Comment;
+import kr.co.devsign.devsign_backend.Entity.CommentLike;
+import kr.co.devsign.devsign_backend.Entity.Member;
+import kr.co.devsign.devsign_backend.Entity.Post;
+import kr.co.devsign.devsign_backend.Entity.PostLike;
+import kr.co.devsign.devsign_backend.Entity.PostView;
+import kr.co.devsign.devsign_backend.Repository.CommentLikeRepository;
+import kr.co.devsign.devsign_backend.Repository.CommentRepository;
+import kr.co.devsign.devsign_backend.Repository.MemberRepository;
+import kr.co.devsign.devsign_backend.Repository.PostLikeRepository;
+import kr.co.devsign.devsign_backend.Repository.PostRepository;
+import kr.co.devsign.devsign_backend.Repository.PostViewRepository;
+import kr.co.devsign.devsign_backend.dto.board.CommentResponse;
+import kr.co.devsign.devsign_backend.dto.board.CreateCommentRequest;
+import kr.co.devsign.devsign_backend.dto.board.CreatePostRequest;
+import kr.co.devsign.devsign_backend.dto.board.PostResponse;
+import kr.co.devsign.devsign_backend.dto.board.UpdatePostRequest;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Optional;
 
 @Service
@@ -31,22 +46,20 @@ public class BoardService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public List<Post> getAllPosts() {
-        return postRepository.findAllByOrderByIdDesc();
+    public List<PostResponse> getAllPosts() {
+        return postRepository.findAllByOrderByIdDesc().stream()
+                .map(this::toPostResponse)
+                .toList();
     }
 
-    public Post createPost(Map<String, Object> payload, String loginId, String ip) {
+    public PostResponse createPost(CreatePostRequest payload, String loginId, String ip) {
         Member member = memberRepository.findByLoginId(loginId).orElseThrow();
 
         Post post = new Post();
-        post.setTitle((String) payload.get("title"));
-        post.setContent((String) payload.get("content"));
-        post.setCategory((String) payload.get("category"));
-
-        Object imagesObj = payload.get("images");
-        if (imagesObj instanceof List) {
-            post.setImages((List<String>) imagesObj);
-        }
+        post.setTitle(payload.title());
+        post.setContent(payload.content());
+        post.setCategory(payload.category());
+        post.setImages(payload.images() != null ? payload.images() : new ArrayList<>());
 
         post.setAuthor(member.getName());
         post.setLoginId(member.getLoginId());
@@ -56,11 +69,11 @@ public class BoardService {
 
         Post saved = postRepository.save(post);
         accessLogService.logByLoginId(loginId, "POST_CREATE", ip);
-        return saved;
+        return toPostResponse(saved);
     }
 
     @Transactional
-    public Post getPostDetail(Long id, String loginId) {
+    public PostResponse getPostDetail(Long id, String loginId) {
         Post post = postRepository.findById(id).orElseThrow();
         Member member = memberRepository.findByLoginId(loginId != null ? loginId : "").orElse(null);
 
@@ -76,26 +89,22 @@ public class BoardService {
             }
             syncLikedStatus(post, member);
         }
-        return post;
+        return toPostResponse(post);
     }
 
-    public Post updatePost(Long id, Map<String, Object> payload, String loginId, String ip) {
+    public PostResponse updatePost(Long id, UpdatePostRequest payload, String loginId, String ip) {
         Post post = postRepository.findById(id).orElseThrow();
-        post.setTitle((String) payload.get("title"));
-        post.setContent((String) payload.get("content"));
-        post.setCategory((String) payload.get("category"));
-
-        Object imagesObj = payload.get("images");
-        if (imagesObj instanceof List) {
-            post.setImages((List<String>) imagesObj);
-        }
+        post.setTitle(payload.title());
+        post.setContent(payload.content());
+        post.setCategory(payload.category());
+        post.setImages(payload.images() != null ? payload.images() : new ArrayList<>());
 
         accessLogService.logByLoginId(loginId, "POST_UPDATE", ip);
-        return postRepository.save(post);
+        return toPostResponse(postRepository.save(post));
     }
 
     @Transactional
-    public Map<String, String> deletePost(Long id, String loginId, String ip) {
+    public StatusResponse deletePost(Long id, String loginId, String ip) {
         Post post = postRepository.findById(id).orElseThrow();
 
         postLikeRepository.deleteByPost(post);
@@ -108,11 +117,11 @@ public class BoardService {
         postRepository.delete(post);
 
         accessLogService.logByLoginId(loginId, "POST_DELETE", ip);
-        return Map.of("status", "success");
+        return StatusResponse.success();
     }
 
     @Transactional
-    public Post toggleLike(Long id, String loginId, String ip) {
+    public PostResponse toggleLike(Long id, String loginId, String ip) {
         Post post = postRepository.findById(id).orElseThrow();
         Member member = memberRepository.findByLoginId(loginId).orElseThrow();
 
@@ -138,17 +147,16 @@ public class BoardService {
         Post updatedPost = postRepository.findById(id).orElseThrow();
         Member freshMember = memberRepository.findByLoginId(loginId).orElseThrow();
         syncLikedStatus(updatedPost, freshMember);
-        return updatedPost;
+        return toPostResponse(updatedPost);
     }
 
     @Transactional
-    public Post addComment(Long postId, Map<String, String> payload, String loginId, String ip) {
+    public PostResponse addComment(Long postId, CreateCommentRequest payload, String loginId, String ip) {
         Post post = postRepository.findById(postId).orElseThrow();
-        String parentId = payload.get("parentId");
         Member member = memberRepository.findByLoginId(loginId).orElseThrow();
 
         Comment comment = new Comment();
-        comment.setContent(payload.get("content"));
+        comment.setContent(payload.content());
         comment.setAuthor(member.getName());
         comment.setLoginId(member.getLoginId());
         comment.setStudentId(member.getStudentId());
@@ -156,8 +164,8 @@ public class BoardService {
         comment.setDate(LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM.dd HH:mm")));
         comment.setPost(post);
 
-        if (parentId != null && !parentId.isEmpty()) {
-            Comment parent = commentRepository.findById(Long.parseLong(parentId)).orElseThrow();
+        if (payload.parentId() != null) {
+            Comment parent = commentRepository.findById(payload.parentId()).orElseThrow();
             comment.setParent(parent);
             comment.setReply(true);
         }
@@ -171,14 +179,21 @@ public class BoardService {
         Post updatedPost = postRepository.findById(postId).orElseThrow();
         Member freshMember = memberRepository.findByLoginId(loginId).orElseThrow();
         syncLikedStatus(updatedPost, freshMember);
-        return updatedPost;
+        return toPostResponse(updatedPost);
     }
 
     @Transactional
-    public Post deleteComment(Long postId, Long commentId, String loginId, String ip) {
+    public PostResponse deleteComment(Long postId, Long commentId, String loginId, String ip) {
         Comment comment = commentRepository.findById(commentId).orElseThrow();
-        commentLikeRepository.deleteByComment(comment);
-        commentRepository.delete(comment);
+        List<Comment> deleteTargets = new ArrayList<>();
+        collectCommentsForDelete(comment, deleteTargets);
+
+        for (Comment target : deleteTargets) {
+            commentLikeRepository.deleteByComment(target);
+        }
+        for (Comment target : deleteTargets) {
+            commentRepository.delete(target);
+        }
 
         accessLogService.logByLoginId(loginId, "COMMENT_DELETE", ip);
 
@@ -188,11 +203,21 @@ public class BoardService {
         Post post = postRepository.findById(postId).orElseThrow();
         Member freshMember = memberRepository.findByLoginId(loginId).orElse(null);
         syncLikedStatus(post, freshMember);
-        return post;
+        return toPostResponse(post);
+    }
+
+    private void collectCommentsForDelete(Comment current, List<Comment> result) {
+        if (current.getReplies() != null && !current.getReplies().isEmpty()) {
+            for (Comment reply : current.getReplies()) {
+                collectCommentsForDelete(reply, result);
+            }
+        }
+        // Delete children first, then parent to avoid FK violations.
+        result.add(current);
     }
 
     @Transactional
-    public Post toggleCommentLike(Long postId, Long commentId, String loginId) {
+    public PostResponse toggleCommentLike(Long postId, Long commentId, String loginId) {
         Comment comment = commentRepository.findById(commentId).orElseThrow();
         Member member = memberRepository.findByLoginId(loginId).orElseThrow();
 
@@ -216,7 +241,7 @@ public class BoardService {
         Post post = postRepository.findById(postId).orElseThrow();
         Member freshMember = memberRepository.findByLoginId(loginId).orElseThrow();
         syncLikedStatus(post, freshMember);
-        return post;
+        return toPostResponse(post);
     }
 
     private void syncLikedStatus(Post post, Member member) {
@@ -235,5 +260,50 @@ public class BoardService {
                 }
             });
         }
+    }
+
+    private PostResponse toPostResponse(Post post) {
+        List<CommentResponse> comments = post.getCommentsList() == null
+                ? List.of()
+                : post.getCommentsList().stream().map(this::toCommentResponse).toList();
+
+        return new PostResponse(
+                post.getId(),
+                post.getTitle(),
+                post.getContent(),
+                post.getCategory(),
+                post.getAuthor(),
+                post.getLoginId(),
+                post.getStudentId(),
+                post.getProfileImage(),
+                post.getViews(),
+                post.getLikes(),
+                post.isLikedByMe(),
+                post.getImages() == null ? List.of() : post.getImages(),
+                comments,
+                post.getCreatedAt(),
+                post.getDate()
+        );
+    }
+
+    private CommentResponse toCommentResponse(Comment comment) {
+        List<CommentResponse> replies = comment.getReplies() == null
+                ? List.of()
+                : comment.getReplies().stream().map(this::toCommentResponse).toList();
+
+        return new CommentResponse(
+                comment.getId(),
+                comment.getContent(),
+                comment.getAuthor(),
+                comment.getLoginId(),
+                comment.getStudentId(),
+                comment.getProfileImage(),
+                comment.getDate(),
+                comment.getCreatedAt(),
+                comment.getLikes(),
+                comment.isLikedByMe(),
+                comment.isReply(),
+                replies
+        );
     }
 }

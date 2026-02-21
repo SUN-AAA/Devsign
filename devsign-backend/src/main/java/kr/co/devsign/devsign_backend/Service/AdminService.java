@@ -1,15 +1,20 @@
 package kr.co.devsign.devsign_backend.Service;
 
-import kr.co.devsign.devsign_backend.Entity.AccessLog;
 import kr.co.devsign.devsign_backend.Entity.Member;
 import kr.co.devsign.devsign_backend.Repository.AccessLogRepository;
 import kr.co.devsign.devsign_backend.Repository.MemberRepository;
+import kr.co.devsign.devsign_backend.dto.admin.AccessLogResponse;
+import kr.co.devsign.devsign_backend.dto.admin.AdminMemberResponse;
+import kr.co.devsign.devsign_backend.dto.admin.HeroSettingsRequest;
+import kr.co.devsign.devsign_backend.dto.admin.HeroSettingsResponse;
+import kr.co.devsign.devsign_backend.dto.admin.RestoreMemberRequest;
+import kr.co.devsign.devsign_backend.dto.admin.SyncDiscordResponse;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,31 +29,40 @@ public class AdminService {
 
     private static final Map<String, String> heroSettings = new ConcurrentHashMap<>();
     static {
-        heroSettings.put("recruitmentText", "2026년 신입 부원 모집 중");
+        heroSettings.put("recruitmentText", "2026 recruitment open");
         heroSettings.put("applyLink", "https://open.kakao.com/o/example");
     }
 
-    public List<Member> getAllMembers() {
-        return memberRepository.findAllByOrderByStudentIdDesc();
+    public List<AdminMemberResponse> getAllMembers() {
+        return memberRepository.findAllByOrderByStudentIdDesc().stream()
+                .map(this::toAdminMemberResponse)
+                .toList();
     }
 
-    public List<AccessLog> getAllLogs() {
-        return accessLogRepository.findAllByOrderByTimestampDesc();
+    public List<AccessLogResponse> getAllLogs() {
+        return accessLogRepository.findAllByOrderByTimestampDesc().stream()
+                .map(log -> new AccessLogResponse(
+                        log.getId(),
+                        log.getName(),
+                        log.getStudentId(),
+                        log.getType(),
+                        log.getIp(),
+                        log.getTimestamp()
+                ))
+                .toList();
     }
 
-    public Map<String, String> getHeroSettings() {
-        return heroSettings;
+    public HeroSettingsResponse getHeroSettings() {
+        return new HeroSettingsResponse(heroSettings.get("recruitmentText"), heroSettings.get("applyLink"));
     }
 
-    public Map<String, String> updateHeroSettings(Map<String, String> settings) {
-        heroSettings.put("recruitmentText", settings.get("recruitmentText"));
-        heroSettings.put("applyLink", settings.get("applyLink"));
-        return Map.of("status", "success");
+    public StatusResponse updateHeroSettings(HeroSettingsRequest settings) {
+        heroSettings.put("recruitmentText", settings.recruitmentText());
+        heroSettings.put("applyLink", settings.applyLink());
+        return StatusResponse.success();
     }
 
-    public Map<String, Object> syncDiscord() {
-        Map<String, Object> response = new HashMap<>();
-
+    public SyncDiscordResponse syncDiscord() {
         try {
             Map<String, Object> botRes = discordBotClient.syncAllMembers();
 
@@ -74,25 +88,17 @@ public class AdminService {
                     }
                 }
 
-                response.put("status", "success");
-                response.put("message", updateCount + "명의 부원 정보가 디스코드와 동기화되었습니다.");
-                return response;
+                return new SyncDiscordResponse("success", updateCount + " members synchronized");
             }
 
-            response.put("status", "fail");
-            response.put("message", "봇 서버로부터 데이터를 받지 못했습니다.");
-            return response;
+            return new SyncDiscordResponse("fail", "failed to receive data from bot server");
 
         } catch (Exception e) {
-            response.put("status", "error");
-            response.put("message", "동기화 중 서버 에러 발생: " + e.getMessage());
-            return response;
+            return new SyncDiscordResponse("error", "sync error: " + e.getMessage());
         }
     }
 
-    public Map<String, Object> toggleSuspension(Long id, String ip) {
-        Map<String, Object> response = new HashMap<>();
-
+    public StatusResponse toggleSuspension(Long id, String ip) {
         return memberRepository.findById(id)
                 .map(m -> {
                     m.setSuspended(!m.isSuspended());
@@ -103,38 +109,37 @@ public class AdminService {
                             m.isSuspended() ? "ACCOUNT_SUSPEND" : "ACCOUNT_UNSUSPEND",
                             ip
                     );
-
-                    response.put("status", "success");
-                    return response;
+                    return StatusResponse.success();
                 })
-                .orElseGet(() -> {
-                    response.put("status", "fail");
-                    response.put("message", "사용자를 찾을 수 없습니다.");
-                    return response;
-                });
+                .orElseGet(() -> StatusResponse.fail("member not found"));
     }
 
-    public Map<String, Object> restoreMember(Member member, String ip) {
-        Map<String, Object> response = new HashMap<>();
+    public StatusResponse restoreMember(RestoreMemberRequest request, String ip) {
         try {
+            Member member = new Member();
             member.setId(null);
+            member.setLoginId(request.loginId());
+            member.setPassword(request.password());
+            member.setName(request.name());
+            member.setStudentId(request.studentId());
+            member.setDept(request.dept());
+            member.setInterests(request.interests());
+            member.setDiscordTag(request.discordTag());
+            member.setUserStatus(request.userStatus());
+            member.setRole(request.role());
+            member.setSuspended(request.suspended());
+            member.setProfileImage(request.profileImage());
+
             Member saved = memberRepository.save(member);
-
             accessLogService.logByMember(saved, "ACCOUNT_RESTORE", ip);
-
-            response.put("status", "success");
-            return response;
+            return StatusResponse.success();
 
         } catch (Exception e) {
-            response.put("status", "fail");
-            response.put("message", "복구 중 오류 발생: " + e.getMessage());
-            return response;
+            return StatusResponse.fail("restore failed: " + e.getMessage());
         }
     }
 
-    public Map<String, Object> deleteMember(Long id, boolean hard, String ip) {
-        Map<String, Object> response = new HashMap<>();
-
+    public StatusResponse deleteMember(Long id, boolean hard, String ip) {
         return memberRepository.findById(id)
                 .map(m -> {
                     accessLogService.logByMember(
@@ -144,14 +149,24 @@ public class AdminService {
                     );
 
                     memberRepository.deleteById(id);
-
-                    response.put("status", "success");
-                    return response;
+                    return StatusResponse.success();
                 })
-                .orElseGet(() -> {
-                    response.put("status", "fail");
-                    response.put("message", "삭제할 대상을 찾을 수 없습니다.");
-                    return response;
-                });
+                .orElseGet(() -> StatusResponse.fail("member not found"));
+    }
+
+    private AdminMemberResponse toAdminMemberResponse(Member member) {
+        return new AdminMemberResponse(
+                member.getId(),
+                member.getLoginId(),
+                member.getName(),
+                member.getStudentId(),
+                member.getDept(),
+                member.getInterests(),
+                member.getDiscordTag(),
+                member.getUserStatus(),
+                member.getRole(),
+                member.isSuspended(),
+                member.getProfileImage()
+        );
     }
 }

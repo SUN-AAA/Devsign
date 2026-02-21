@@ -1,14 +1,23 @@
 package kr.co.devsign.devsign_backend.Service;
 
-import kr.co.devsign.devsign_backend.Entity.*;
-import kr.co.devsign.devsign_backend.Repository.*;
+import kr.co.devsign.devsign_backend.Entity.Event;
+import kr.co.devsign.devsign_backend.Entity.EventLike;
+import kr.co.devsign.devsign_backend.Entity.EventView;
+import kr.co.devsign.devsign_backend.Entity.Member;
+import kr.co.devsign.devsign_backend.Repository.EventLikeRepository;
+import kr.co.devsign.devsign_backend.Repository.EventRepository;
+import kr.co.devsign.devsign_backend.Repository.EventViewRepository;
+import kr.co.devsign.devsign_backend.Repository.MemberRepository;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
+import kr.co.devsign.devsign_backend.dto.event.EventDetailResponse;
+import kr.co.devsign.devsign_backend.dto.event.EventLikeResponse;
+import kr.co.devsign.devsign_backend.dto.event.EventRequest;
+import kr.co.devsign.devsign_backend.dto.event.EventResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Optional;
 
 @Service
@@ -22,44 +31,46 @@ public class EventService {
 
     private final AccessLogService accessLogService;
 
-    public List<Event> getAllEvents() {
-        return eventRepository.findAll();
+    public List<EventResponse> getAllEvents() {
+        return eventRepository.findAll().stream()
+                .map(this::toEventResponse)
+                .toList();
     }
 
-    public Event createEvent(Map<String, Object> payload, String loginId, String ip) {
+    public EventResponse createEvent(EventRequest payload, String loginId, String ip) {
         Event event = new Event();
-        event.setCategory((String) payload.get("category"));
-        event.setTitle((String) payload.get("title"));
-        event.setDate((String) payload.get("date"));
-        event.setLocation((String) payload.get("location"));
-        event.setContent((String) payload.get("content"));
-        event.setImage((String) payload.get("image"));
+        event.setCategory(payload.category());
+        event.setTitle(payload.title());
+        event.setDate(payload.date());
+        event.setLocation(payload.location());
+        event.setContent(payload.content());
+        event.setImage(payload.image());
         event.setViews(0);
         event.setLikes(0);
 
         Event saved = eventRepository.save(event);
         accessLogService.logByLoginId(loginId, "EVENT_CREATE", ip);
-        return saved;
+        return toEventResponse(saved);
     }
 
-    public Event updateEvent(Long id, Map<String, Object> payload, String loginId, String ip) {
+    public EventResponse updateEvent(Long id, EventRequest payload, String loginId, String ip) {
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("행사를 찾을 수 없습니다."));
+                .orElseThrow(() -> new RuntimeException("event not found"));
 
-        event.setCategory((String) payload.get("category"));
-        event.setTitle((String) payload.get("title"));
-        event.setDate((String) payload.get("date"));
-        event.setLocation((String) payload.get("location"));
-        event.setContent((String) payload.get("content"));
-        event.setImage((String) payload.get("image"));
+        event.setCategory(payload.category());
+        event.setTitle(payload.title());
+        event.setDate(payload.date());
+        event.setLocation(payload.location());
+        event.setContent(payload.content());
+        event.setImage(payload.image());
 
         accessLogService.logByLoginId(loginId, "EVENT_UPDATE", ip);
-        return eventRepository.save(event);
+        return toEventResponse(eventRepository.save(event));
     }
 
-    public Map<String, Object> getEventDetail(Long id, String loginId) {
+    public EventDetailResponse getEventDetail(Long id, String loginId) {
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("행사를 찾을 수 없습니다."));
+                .orElseThrow(() -> new RuntimeException("event not found"));
 
         boolean isLiked = false;
 
@@ -82,31 +93,25 @@ public class EventService {
             }
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("event", event);
-        response.put("isLiked", isLiked);
-        return response;
+        return new EventDetailResponse(toEventResponse(event), isLiked);
     }
 
     @Transactional
-    public Map<String, Object> toggleLike(Long id, String loginId) {
-        Map<String, Object> response = new HashMap<>();
-
+    public EventLikeResponse toggleLike(Long id, String loginId) {
         if (loginId == null || loginId.isBlank()) {
-            response.put("status", "error");
-            response.put("message", "로그인이 필요합니다.");
-            return response;
+            return new EventLikeResponse("error", "login required", null, null);
         }
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("행사를 찾을 수 없습니다."));
+                .orElseThrow(() -> new RuntimeException("event not found"));
         Member member = memberRepository.findByLoginId(loginId)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new RuntimeException("member not found"));
 
+        boolean liked;
         if (eventLikeRepository.existsByMemberAndEvent(member, event)) {
             eventLikeRepository.deleteByMemberAndEvent(member, event);
             event.setLikes(Math.max(0, event.getLikes() - 1));
-            response.put("liked", false);
+            liked = false;
         } else {
             EventLike like = new EventLike();
             like.setMember(member);
@@ -114,20 +119,17 @@ public class EventService {
             eventLikeRepository.save(like);
 
             event.setLikes(event.getLikes() + 1);
-            response.put("liked", true);
+            liked = true;
         }
 
         eventRepository.save(event);
-
-        response.put("likeCount", event.getLikes());
-        response.put("status", "success");
-        return response;
+        return new EventLikeResponse("success", null, liked, event.getLikes());
     }
 
     @Transactional
-    public Map<String, String> deleteEvent(Long id, String loginId, String ip) {
+    public StatusResponse deleteEvent(Long id, String loginId, String ip) {
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("행사를 찾을 수 없습니다."));
+                .orElseThrow(() -> new RuntimeException("event not found"));
 
         accessLogService.logByLoginId(loginId, "EVENT_DELETE", ip);
 
@@ -136,6 +138,20 @@ public class EventService {
 
         eventRepository.delete(event);
 
-        return Map.of("status", "success");
+        return StatusResponse.success();
+    }
+
+    private EventResponse toEventResponse(Event event) {
+        return new EventResponse(
+                event.getId(),
+                event.getCategory(),
+                event.getTitle(),
+                event.getDate(),
+                event.getLocation(),
+                event.getContent(),
+                event.getImage(),
+                event.getViews(),
+                event.getLikes()
+        );
     }
 }

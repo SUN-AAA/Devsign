@@ -4,6 +4,10 @@ import kr.co.devsign.devsign_backend.Entity.AssemblyProject;
 import kr.co.devsign.devsign_backend.Entity.AssemblyReport;
 import kr.co.devsign.devsign_backend.Repository.AssemblyProjectRepository;
 import kr.co.devsign.devsign_backend.Repository.AssemblyReportRepository;
+import kr.co.devsign.devsign_backend.dto.assembly.AssemblyReportResponse;
+import kr.co.devsign.devsign_backend.dto.assembly.MySubmissionsResponse;
+import kr.co.devsign.devsign_backend.dto.assembly.SaveProjectTitleRequest;
+import kr.co.devsign.devsign_backend.dto.assembly.SubmitFilesCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,8 +16,6 @@ import java.io.File;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +24,7 @@ public class AssemblyService {
     private final AssemblyReportRepository reportRepository;
     private final AssemblyProjectRepository projectRepository;
 
-    public Map<String, Object> getMySubmissions(String loginId, int year, int semester) {
+    public MySubmissionsResponse getMySubmissions(String loginId, int year, int semester) {
         List<AssemblyReport> reports =
                 reportRepository.findByLoginIdAndYearAndSemesterOrderByMonthAsc(loginId, year, semester);
 
@@ -34,8 +36,8 @@ public class AssemblyService {
                 r.setYear(year);
                 r.setSemester(semester);
                 r.setMonth(month);
-                r.setStatus("미제출");
-                r.setType(month == 3 || month == 9 ? "계획서" : (month == 6 || month == 12 ? "결과물" : "진행보고"));
+                r.setStatus("NOT_SUBMITTED");
+                r.setType(resolveType(month));
                 reportRepository.save(r);
             }
             reports = reportRepository.findByLoginIdAndYearAndSemesterOrderByMonthAsc(loginId, year, semester);
@@ -45,17 +47,18 @@ public class AssemblyService {
                 .map(AssemblyProject::getTitle)
                 .orElse("");
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("reports", reports);
-        response.put("projectTitle", projectTitle);
-        return response;
+        List<AssemblyReportResponse> reportResponses = reports.stream()
+                .map(this::toReportResponse)
+                .toList();
+
+        return new MySubmissionsResponse(reportResponses, projectTitle);
     }
 
-    public void saveProjectTitle(Map<String, Object> params) {
-        String loginId = (String) params.get("loginId");
-        int year = Integer.parseInt(params.get("year").toString());
-        int semester = Integer.parseInt(params.get("semester").toString());
-        String title = (String) params.get("title");
+    public void saveProjectTitle(SaveProjectTitleRequest params) {
+        String loginId = params.loginId();
+        int year = params.year();
+        int semester = params.semester();
+        String title = params.title();
 
         AssemblyProject project = projectRepository.findByLoginIdAndYearAndSemester(loginId, year, semester)
                 .orElse(new AssemblyProject());
@@ -68,17 +71,16 @@ public class AssemblyService {
         projectRepository.save(project);
     }
 
-    public String submitFiles(
-            String loginId,
-            String reportId,
-            int year,
-            int semester,
-            int month,
-            String memo,
-            MultipartFile presentation,
-            MultipartFile pdf,
-            MultipartFile other
-    ) throws Exception {
+    public String submitFiles(SubmitFilesCommand command) throws Exception {
+        String loginId = command.loginId();
+        String reportId = command.reportId();
+        int year = command.year();
+        int semester = command.semester();
+        int month = command.month();
+        String memo = command.memo();
+        MultipartFile presentation = command.presentation();
+        MultipartFile pdf = command.pdf();
+        MultipartFile other = command.other();
 
         AssemblyReport report = null;
 
@@ -102,15 +104,17 @@ public class AssemblyService {
             report.setYear(year);
             report.setSemester(semester);
             report.setMonth(month);
-            report.setStatus("미제출");
-            report.setType(month == 3 || month == 9 ? "계획서" : (month == 6 || month == 12 ? "결과물" : "진행보고"));
+            report.setStatus("NOT_SUBMITTED");
+            report.setType(resolveType(month));
         }
 
         String uploadBase = System.getProperty("user.dir") + File.separator + "uploads";
         String userPath = uploadBase + File.separator + loginId + File.separator + month;
 
         File folder = new File(userPath);
-        if (!folder.exists()) folder.mkdirs();
+        if (!folder.exists()) {
+            folder.mkdirs();
+        }
 
         if (presentation != null && !presentation.isEmpty()) {
             String fileName = "pres_" + presentation.getOriginalFilename();
@@ -131,11 +135,39 @@ public class AssemblyService {
         }
 
         report.setMemo(memo);
-        report.setStatus("제출완료");
+        report.setStatus("SUBMITTED");
         report.setDate(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")));
 
         reportRepository.save(report);
-        return "제출 성공";
+        return "submitted";
+    }
+
+    private String resolveType(int month) {
+        if (month == 3 || month == 9) {
+            return "PLAN";
+        }
+        if (month == 6 || month == 12) {
+            return "RESULT";
+        }
+        return "PROGRESS";
+    }
+
+    private AssemblyReportResponse toReportResponse(AssemblyReport report) {
+        return new AssemblyReportResponse(
+                report.getId(),
+                report.getLoginId(),
+                report.getYear(),
+                report.getSemester(),
+                report.getMonth(),
+                report.getType(),
+                report.getStatus(),
+                report.getTitle(),
+                report.getMemo(),
+                report.getDate(),
+                report.getDeadline(),
+                report.getPresentationPath(),
+                report.getPdfPath(),
+                report.getOtherPath()
+        );
     }
 }
-

@@ -1,66 +1,80 @@
 package kr.co.devsign.devsign_backend.Controller;
 
 import jakarta.servlet.http.HttpServletRequest;
-import kr.co.devsign.devsign_backend.Entity.Member;
 import kr.co.devsign.devsign_backend.Service.MemberService;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
+import kr.co.devsign.devsign_backend.dto.member.ChangePasswordRequest;
+import kr.co.devsign.devsign_backend.dto.member.DiscordLookupResponse;
+import kr.co.devsign.devsign_backend.dto.member.FindDiscordByInfoRequest;
+import kr.co.devsign.devsign_backend.dto.member.LoginRequest;
+import kr.co.devsign.devsign_backend.dto.member.LoginResponse;
+import kr.co.devsign.devsign_backend.dto.member.LogoutLogRequest;
+import kr.co.devsign.devsign_backend.dto.member.MemberResponse;
+import kr.co.devsign.devsign_backend.dto.member.ResetPasswordFinalRequest;
+import kr.co.devsign.devsign_backend.dto.member.SendDiscordCodeRequest;
+import kr.co.devsign.devsign_backend.dto.member.SendDiscordCodeResponse;
+import kr.co.devsign.devsign_backend.dto.member.SignupRequest;
+import kr.co.devsign.devsign_backend.dto.member.UpdateMemberRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyCodeRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyCodeResponse;
+import kr.co.devsign.devsign_backend.dto.member.VerifyIdPwRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyIdPwResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/members")
-
 @RequiredArgsConstructor
 public class MemberController {
 
     private final MemberService memberService;
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody Map<String, String> payload, HttpServletRequest request) {
-        Member saved = memberService.signup(payload, request.getRemoteAddr());
+    public ResponseEntity<MemberResponse> signup(@RequestBody SignupRequest payload, HttpServletRequest request) {
+        MemberResponse saved = memberService.signup(payload, request.getRemoteAddr());
         return ResponseEntity.ok(saved);
     }
 
     @GetMapping("/all")
-    public List<Member> getAllMembers() {
+    public List<MemberResponse> getAllMembers() {
         return memberService.getAllMembers();
     }
 
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody Member loginRequest, HttpServletRequest request) {
+    public LoginResponse login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         return memberService.login(loginRequest, request);
     }
 
     @PostMapping("/logout-log")
-    public Map<String, Object> logoutLog(@RequestBody Map<String, String> requestData, HttpServletRequest request) {
+    public StatusResponse logoutLog(@RequestBody LogoutLogRequest requestData, HttpServletRequest request) {
         return memberService.logoutLog(requestData, request.getRemoteAddr());
     }
 
     @PutMapping("/update/{loginId}")
-    public Map<String, Object> updateMember(@PathVariable String loginId, @RequestBody Map<String, String> updateData) {
+    public StatusResponse updateMember(@PathVariable String loginId, @RequestBody UpdateMemberRequest updateData) {
         return memberService.updateMember(loginId, updateData);
     }
 
     @PutMapping("/change-password/{loginId}")
-    public Map<String, Object> changePassword(@PathVariable String loginId, @RequestBody Map<String, String> request) {
+    public StatusResponse changePassword(@PathVariable String loginId, @RequestBody ChangePasswordRequest request) {
         return memberService.changePassword(loginId, request);
     }
 
     @PostMapping("/find-discord-by-info")
-    public Map<String, Object> findDiscordByInfo(@RequestBody Map<String, String> request) {
+    public DiscordLookupResponse findDiscordByInfo(@RequestBody FindDiscordByInfoRequest request) {
         return memberService.findDiscordByInfo(request);
     }
 
     @PostMapping("/verify-id-pw")
-    public Map<String, Object> verifyIdPw(@RequestBody Map<String, String> request) {
+    public VerifyIdPwResponse verifyIdPw(@RequestBody VerifyIdPwRequest request) {
         return memberService.verifyIdPw(request);
     }
 
     @PutMapping("/reset-password-final")
-    public Map<String, Object> resetPasswordFinal(@RequestBody Map<String, String> request) {
+    public StatusResponse resetPasswordFinal(@RequestBody ResetPasswordFinalRequest request) {
         return memberService.resetPasswordFinal(request);
     }
 
@@ -70,12 +84,12 @@ public class MemberController {
     }
 
     @PostMapping("/discord-send")
-    public Map<String, Object> sendDiscordCode(@RequestBody Map<String, String> request) {
+    public SendDiscordCodeResponse sendDiscordCode(@RequestBody SendDiscordCodeRequest request) {
         return memberService.sendDiscordCode(request);
     }
 
     @PostMapping("/verify-code")
-    public Map<String, Object> verifyCode(@RequestBody Map<String, String> request) {
+    public VerifyCodeResponse verifyCode(@RequestBody VerifyCodeRequest request) {
         return memberService.verifyCode(request);
     }
 }

@@ -1,18 +1,19 @@
 package kr.co.devsign.devsign_backend.Controller;
 
 import jakarta.servlet.http.HttpServletRequest;
-import kr.co.devsign.devsign_backend.Entity.Notice;
 import kr.co.devsign.devsign_backend.Service.NoticeService;
 import kr.co.devsign.devsign_backend.Util.JwtUtil;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
+import kr.co.devsign.devsign_backend.dto.notice.NoticePinResponse;
+import kr.co.devsign.devsign_backend.dto.notice.NoticeRequest;
+import kr.co.devsign.devsign_backend.dto.notice.NoticeResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notices")
-
 @RequiredArgsConstructor
 public class NoticeController {
 
@@ -20,12 +21,12 @@ public class NoticeController {
     private final JwtUtil jwtUtil;
 
     @GetMapping
-    public List<Notice> getAllNotices() {
+    public List<NoticeResponse> getAllNotices() {
         return noticeService.getAllNotices();
     }
 
     @PutMapping("/{id}/pin")
-    public Map<String, Object> togglePin(
+    public NoticePinResponse togglePin(
             @PathVariable Long id,
             HttpServletRequest request
     ) {
@@ -34,25 +35,25 @@ public class NoticeController {
     }
 
     @PostMapping
-    public Notice createNotice(@RequestBody Map<String, Object> payload, HttpServletRequest request) {
+    public NoticeResponse createNotice(@RequestBody NoticeRequest payload, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return noticeService.createNotice(payload, loginId, request.getRemoteAddr());
     }
 
     @PutMapping("/{id}")
-    public Notice updateNotice(@PathVariable Long id, @RequestBody Map<String, Object> payload, HttpServletRequest request) {
+    public NoticeResponse updateNotice(@PathVariable Long id, @RequestBody NoticeRequest payload, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return noticeService.updateNotice(id, payload, loginId, request.getRemoteAddr());
     }
 
     @GetMapping("/{id}")
-    public Notice getNoticeDetail(@PathVariable Long id, HttpServletRequest request) {
+    public NoticeResponse getNoticeDetail(@PathVariable Long id, HttpServletRequest request) {
         String loginId = jwtUtil.getLoginIdFromRequest(request);
         return noticeService.getNoticeDetail(id, loginId);
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, String> deleteNotice(
+    public StatusResponse deleteNotice(
             @PathVariable Long id,
             HttpServletRequest request
     ) {

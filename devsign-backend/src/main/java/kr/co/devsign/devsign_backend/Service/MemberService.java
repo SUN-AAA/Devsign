@@ -7,8 +7,24 @@ import kr.co.devsign.devsign_backend.Entity.Member;
 import kr.co.devsign.devsign_backend.Repository.AccessLogRepository;
 import kr.co.devsign.devsign_backend.Repository.DiscordAuthRepository;
 import kr.co.devsign.devsign_backend.Repository.MemberRepository;
-
 import kr.co.devsign.devsign_backend.Util.JwtUtil;
+import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
+import kr.co.devsign.devsign_backend.dto.member.ChangePasswordRequest;
+import kr.co.devsign.devsign_backend.dto.member.DiscordLookupResponse;
+import kr.co.devsign.devsign_backend.dto.member.FindDiscordByInfoRequest;
+import kr.co.devsign.devsign_backend.dto.member.LoginRequest;
+import kr.co.devsign.devsign_backend.dto.member.LoginResponse;
+import kr.co.devsign.devsign_backend.dto.member.LogoutLogRequest;
+import kr.co.devsign.devsign_backend.dto.member.MemberResponse;
+import kr.co.devsign.devsign_backend.dto.member.ResetPasswordFinalRequest;
+import kr.co.devsign.devsign_backend.dto.member.SendDiscordCodeRequest;
+import kr.co.devsign.devsign_backend.dto.member.SendDiscordCodeResponse;
+import kr.co.devsign.devsign_backend.dto.member.SignupRequest;
+import kr.co.devsign.devsign_backend.dto.member.UpdateMemberRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyCodeRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyCodeResponse;
+import kr.co.devsign.devsign_backend.dto.member.VerifyIdPwRequest;
+import kr.co.devsign.devsign_backend.dto.member.VerifyIdPwResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -17,13 +33,15 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class MemberService {
+    private static final String DEFAULT_AVATAR_URL = "https://cdn.discordapp.com/embed/avatars/0.png";
+
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -40,19 +58,19 @@ public class MemberService {
     private final AccessLogService accessLogService;
     private final DiscordBotClient discordBotClient;
 
-    public Member signup(Map<String, String> payload, String ip) {
-        String authCode = payload.get("authCode");
+    public MemberResponse signup(SignupRequest payload, String ip) {
+        String authCode = payload.authCode();
 
         DiscordAuth auth = discordAuthRepository.findByCode(authCode)
-                .orElseThrow(() -> new RuntimeException("인증 코드가 올바르지 않거나 만료되었습니다."));
+                .orElseThrow(() -> new RuntimeException("invalid or expired auth code"));
 
         Map<String, String> discordInfo = parseDiscordNickname(auth.getDiscordNickname());
 
         Member member = new Member();
-        member.setLoginId(payload.get("loginId"));
-        member.setPassword(passwordEncoder.encode(payload.get("password")));
-        member.setDept(payload.get("dept"));
-        member.setInterests(payload.get("interests"));
+        member.setLoginId(payload.loginId());
+        member.setPassword(passwordEncoder.encode(payload.password()));
+        member.setDept(payload.dept());
+        member.setInterests(payload.interests());
 
         member.setName(discordInfo.get("name"));
         member.setStudentId(discordInfo.get("studentId"));
@@ -67,27 +85,37 @@ public class MemberService {
         accessLogService.logByMember(saved, "SIGNUP", ip);
         discordAuthRepository.delete(auth);
 
-        return saved;
+        return toMemberResponse(saved);
     }
 
-    public List<Member> getAllMembers() {
-        return memberRepository.findAll();
+    public List<MemberResponse> getAllMembers() {
+        return memberRepository.findAll().stream()
+                .map(this::toMemberResponse)
+                .toList();
     }
 
-    public Map<String, Object> login(Member loginRequest, HttpServletRequest request) {
-        Optional<Member> memberOpt = memberRepository.findByLoginId(loginRequest.getLoginId());
-        Map<String, Object> response = new HashMap<>();
+    public LoginResponse login(LoginRequest loginRequest, HttpServletRequest request) {
+        Optional<Member> memberOpt = memberRepository.findByLoginId(loginRequest.loginId());
 
-        if (memberOpt.isPresent() && passwordEncoder.matches(loginRequest.getPassword(), memberOpt.get().getPassword())) {
+        if (memberOpt.isPresent() && passwordEncoder.matches(loginRequest.password(), memberOpt.get().getPassword())) {
             Member m = memberOpt.get();
 
             if (m.isSuspended()) {
-                response.put("status", "suspended");
-                response.put("message", "정지된 아이디 입니다. 관리자에게 문의하세요.");
-                return response;
+                return new LoginResponse(
+                        "suspended",
+                        "account suspended",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
             }
 
-            // JWT 토큰 생성
             String token = jwtUtil.generateToken(m.getLoginId(), m.getRole());
 
             AccessLog log = new AccessLog();
@@ -97,154 +125,135 @@ public class MemberService {
             log.setIp(request.getRemoteAddr());
             accessLogRepository.save(log);
 
-            response.put("status", "success");
-            response.put("token", token); // JWT 토큰 추가
-            response.put("role", m.getRole());
-            response.put("userStatus", m.getUserStatus());
-            response.put("name", m.getName());
-            response.put("loginId", m.getLoginId());
-            response.put("studentId", m.getStudentId());
-            response.put("dept", m.getDept());
-            response.put("discordTag", m.getDiscordTag());
-
+            String avatarUrl = DEFAULT_AVATAR_URL;
             try {
                 String botUrl = "http://127.0.0.1:8000/get-avatar/" + m.getDiscordTag();
                 Map<String, Object> botResponse = restTemplate.getForObject(botUrl, Map.class);
                 if (botResponse != null && "success".equals(botResponse.get("status"))) {
-                    response.put("avatarUrl", botResponse.get("avatarUrl"));
-                } else {
-                    response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
+                    avatarUrl = asString(botResponse.get("avatarUrl"));
                 }
-            } catch (Exception e) {
-                response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
+            } catch (Exception ignored) {
             }
-            return response;
-        } else {
-            response.put("status", "fail");
-            response.put("message", "아이디 또는 비밀번호가 일치하지 않습니다.");
-            return response;
+
+            return new LoginResponse(
+                    "success",
+                    null,
+                    token,
+                    m.getRole(),
+                    m.getUserStatus(),
+                    m.getName(),
+                    m.getLoginId(),
+                    m.getStudentId(),
+                    m.getDept(),
+                    m.getDiscordTag(),
+                    avatarUrl
+            );
         }
+
+        return new LoginResponse(
+                "fail",
+                "invalid credentials",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
-    public Map<String, Object> logoutLog(Map<String, String> requestData, String ip) {
-        accessLogService.logRaw(requestData.get("name"), requestData.get("studentId"), "LOGOUT", ip);
-        return Map.of("status", "success");
+    public StatusResponse logoutLog(LogoutLogRequest requestData, String ip) {
+        accessLogService.logRaw(requestData.name(), requestData.studentId(), "LOGOUT", ip);
+        return StatusResponse.success();
     }
 
-    public Map<String, Object> updateMember(String loginId, Map<String, String> updateData) {
+    public StatusResponse updateMember(String loginId, UpdateMemberRequest updateData) {
         Optional<Member> memberOpt = memberRepository.findByLoginId(loginId);
-        Map<String, Object> response = new HashMap<>();
         if (memberOpt.isEmpty()) {
-            response.put("status", "fail");
-            return response;
+            return StatusResponse.fail("member not found");
         }
 
-        String newDiscordTag = updateData.get("discordTag");
+        String newDiscordTag = updateData.discordTag();
 
         try {
             Map<String, Object> botRes = discordBotClient.checkMember(newDiscordTag);
             boolean exists = botRes != null && Boolean.TRUE.equals(botRes.get("exists"));
             if (!exists) {
-                response.put("status", "fail");
-                response.put("message", "입력하신 디스코드 태그를 동아리 서버에서 찾을 수 없습니다.");
-                return response;
+                return StatusResponse.fail("discord member not found");
             }
         } catch (Exception e) {
-            response.put("status", "error");
-            response.put("message", "디스코드 연동 확인 중 서버 오류가 발생했습니다.");
-            return response;
+            return StatusResponse.error("discord verification failed");
         }
 
         Member member = memberOpt.get();
-        member.setDept(updateData.get("dept"));
+        member.setDept(updateData.dept());
         member.setDiscordTag(newDiscordTag);
         memberRepository.save(member);
 
-        response.put("status", "success");
-        return response;
+        return StatusResponse.success();
     }
 
-    public Map<String, Object> changePassword(String loginId, Map<String, String> request) {
+    public StatusResponse changePassword(String loginId, ChangePasswordRequest request) {
         Optional<Member> memberOpt = memberRepository.findByLoginId(loginId);
-        Map<String, Object> response = new HashMap<>();
 
         if (memberOpt.isEmpty()) {
-            response.put("status", "fail");
-            response.put("message", "사용자를 찾을 수 없습니다.");
-            return response;
+            return StatusResponse.fail("member not found");
         }
 
         Member member = memberOpt.get();
-        String currentPw = request.get("currentPassword");
-        String newPw = request.get("newPassword");
-
-        if (!passwordEncoder.matches(currentPw, member.getPassword())) {
-            response.put("status", "fail");
-            response.put("message", "현재 비밀번호가 일치하지 않습니다.");
-            return response;
+        if (!passwordEncoder.matches(request.currentPassword(), member.getPassword())) {
+            return StatusResponse.fail("current password mismatch");
         }
 
-        member.setPassword(passwordEncoder.encode(newPw));
+        member.setPassword(passwordEncoder.encode(request.newPassword()));
         memberRepository.save(member);
 
-        response.put("status", "success");
-        return response;
+        return StatusResponse.success();
     }
 
-    public Map<String, Object> findDiscordByInfo(Map<String, String> request) {
-        String name = request.get("name");
-        String studentId = request.get("studentId");
-
-        return memberRepository.findByNameAndStudentId(name, studentId)
-                .<Map<String, Object>>map(m -> {
-                    Map<String, Object> res = new HashMap<>();
-                    res.put("status", "success");
-                    res.put("discordTag", m.getDiscordTag());
-                    return res;
-                })
-                .orElseGet(() -> Map.of("status", "fail"));
+    public DiscordLookupResponse findDiscordByInfo(FindDiscordByInfoRequest request) {
+        return memberRepository.findByNameAndStudentId(request.name(), request.studentId())
+                .map(m -> new DiscordLookupResponse("success", m.getDiscordTag()))
+                .orElseGet(() -> new DiscordLookupResponse("fail", null));
     }
 
-    public Map<String, Object> verifyIdPw(Map<String, String> request) {
-        String name = request.get("name");
-        String studentId = request.get("studentId");
-        String inputCode = request.get("code");
-
-        Optional<Member> memberOpt = memberRepository.findByNameAndStudentId(name, studentId);
-        if (memberOpt.isEmpty()) return Map.of("status", "fail");
+    public VerifyIdPwResponse verifyIdPw(VerifyIdPwRequest request) {
+        Optional<Member> memberOpt = memberRepository.findByNameAndStudentId(request.name(), request.studentId());
+        if (memberOpt.isEmpty()) {
+            return new VerifyIdPwResponse("fail", null);
+        }
 
         String discordTag = memberOpt.get().getDiscordTag();
-        boolean ok = checkVerificationInternal(discordTag, inputCode);
+        boolean ok = checkVerificationInternal(discordTag, request.code());
+        if (!ok) {
+            return new VerifyIdPwResponse("fail", null);
+        }
 
-        if (!ok) return Map.of("status", "fail");
-
-        Map<String, Object> res = new HashMap<>();
-        res.put("status", "success");
-        res.put("loginId", memberOpt.get().getLoginId());
-        return res;
+        return new VerifyIdPwResponse("success", memberOpt.get().getLoginId());
     }
 
-    public Map<String, Object> resetPasswordFinal(Map<String, String> request) {
-        String name = request.get("name");
-        String studentId = request.get("studentId");
-        String newPassword = request.get("newPassword");
-
-        Optional<Member> memberOpt = memberRepository.findByNameAndStudentId(name, studentId);
-        if (memberOpt.isEmpty()) return Map.of("status", "fail");
+    public StatusResponse resetPasswordFinal(ResetPasswordFinalRequest request) {
+        Optional<Member> memberOpt = memberRepository.findByNameAndStudentId(request.name(), request.studentId());
+        if (memberOpt.isEmpty()) {
+            return StatusResponse.fail("member not found");
+        }
 
         Member member = memberOpt.get();
-        member.setPassword(passwordEncoder.encode(newPassword));
+        member.setPassword(passwordEncoder.encode(request.newPassword()));
         memberRepository.save(member);
 
-        return Map.of("status", "success");
+        return StatusResponse.success();
     }
 
     public boolean checkId(String loginId) {
         return memberRepository.findByLoginId(loginId).isPresent();
     }
 
-    public Map<String, Object> sendDiscordCode(Map<String, String> request) {
-        String discordTag = request.get("discordTag");
+    public SendDiscordCodeResponse sendDiscordCode(SendDiscordCodeRequest request) {
+        String discordTag = request.discordTag();
         String randomCode = String.format("%06d", (int) (Math.random() * 1000000));
 
         try {
@@ -265,39 +274,43 @@ public class MemberService {
                 discordAuthRepository.save(auth);
             }
 
-            return botRes;
+            return new SendDiscordCodeResponse(
+                    asString(botRes != null ? botRes.get("status") : null),
+                    asString(botRes != null ? botRes.get("message") : null),
+                    asString(botRes != null ? botRes.get("name") : null),
+                    asString(botRes != null ? botRes.get("studentId") : null),
+                    asString(botRes != null ? botRes.get("userStatus") : null),
+                    asString(botRes != null ? botRes.get("role") : null),
+                    asString(botRes != null ? botRes.get("avatarUrl") : null)
+            );
 
         } catch (Exception e) {
-            return Map.of("status", "bot_error");
+            return new SendDiscordCodeResponse("bot_error", null, null, null, null, null, null);
         }
     }
 
-    public Map<String, Object> verifyCode(Map<String, String> request) {
-        String discordTag = request.get("discordTag");
-        String inputCode = request.get("code");
-
+    public VerifyCodeResponse verifyCode(VerifyCodeRequest request) {
         Optional<DiscordAuth> authOpt =
-                discordAuthRepository.findTopByDiscordTagOrderByExpiryDesc(discordTag.trim());
+                discordAuthRepository.findTopByDiscordTagOrderByExpiryDesc(request.discordTag().trim());
 
         if (authOpt.isPresent()) {
             DiscordAuth auth = authOpt.get();
-            boolean ok = auth.getCode().equals(inputCode.trim())
+            boolean ok = auth.getCode().equals(request.code().trim())
                     && auth.getExpiry().isAfter(LocalDateTime.now());
 
             if (ok) {
                 Map<String, String> discordInfo = parseDiscordNickname(auth.getDiscordNickname());
-
-                Map<String, Object> res = new HashMap<>();
-                res.put("status", "success");
-                res.put("name", discordInfo.get("name"));
-                res.put("studentId", discordInfo.get("studentId"));
-                res.put("userStatus", auth.getUserStatus());
-                res.put("role", auth.getRole());
-                return res;
+                return new VerifyCodeResponse(
+                        "success",
+                        discordInfo.get("name"),
+                        discordInfo.get("studentId"),
+                        auth.getUserStatus(),
+                        auth.getRole()
+                );
             }
         }
 
-        return Map.of("status", "fail");
+        return new VerifyCodeResponse("fail", null, null, null, null);
     }
 
     private boolean checkVerificationInternal(String discordTag, String code) {
@@ -318,5 +331,24 @@ public class MemberService {
         }
         return info;
     }
-}
 
+    private MemberResponse toMemberResponse(Member member) {
+        return new MemberResponse(
+                member.getId(),
+                member.getLoginId(),
+                member.getName(),
+                member.getStudentId(),
+                member.getDept(),
+                member.getInterests(),
+                member.getDiscordTag(),
+                member.getUserStatus(),
+                member.getRole(),
+                member.isSuspended(),
+                member.getProfileImage()
+        );
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : value.toString();
+    }
+}
