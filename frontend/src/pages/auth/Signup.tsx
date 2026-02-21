@@ -64,13 +64,14 @@ export const Signup = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   };
 
   // 정규식 정의
-  const idRegex = /^[a-zA-Z0-9]{6,}$/; 
+  // 아이디는 문자(한글/영문) + 숫자 조합으로 6자 이상 허용
+  const idRegex = /^(?=.{6,}$)[\p{L}\p{N}]+$/u;
   const passwordRegex = /^(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
 
   // 아이디 중복 확인
   const handleCheckId = async () => {
     if (!idRegex.test(formData.userId)) {
-      return alert("아이디는 영문 또는 영문+숫자 조합으로 6자 이상이어야 합니다.");
+      return alert("아이디는 문자(한글/영문) 또는 문자+숫자 조합으로 6자 이상이어야 합니다.");
     }
     try {
       const response = await api.get(`/members/check/${formData.userId}`);
@@ -205,7 +206,7 @@ export const Signup = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                       <input 
                         type="text" 
                         value={formData.userId} 
-                        onChange={(e) => setFormData({...formData, userId: e.target.value.replace(/[^a-zA-Z0-9]/g, "")})} 
+                        onChange={(e) => setFormData({...formData, userId: e.target.value.replace(/\s/g, "")})} 
                         disabled={idChecked} 
                         placeholder="6자 이상" 
                         className={`w-full pl-12 pr-2 py-4 rounded-2xl outline-none transition-all font-medium text-sm ${idChecked ? "bg-green-50 text-green-700" : "bg-slate-50 text-slate-900"}`} 
