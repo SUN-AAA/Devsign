@@ -73,7 +73,10 @@ cd discord-bot
 python -m pip install discord.py fastapi "uvicorn[standard]"
 ```
 **3. 봇 설정**
+- https://hyungin0505.tistory.com/57 해당 링크의 블로그를 참고해 봇 제작 및 서버 연결
 - `discordBot.py`에서 `TOKEN`, `GUILD_ID`, `LOG_CHANNEL_ID`를 실제 값으로 설정
+- 여기서 `GUILD_ID`는 서버의ID, `LOG_CHANNEL_ID`는 봇 관련 채팅 채널의 ID로 설정
+- `디스코드 설정 -> 고급 -> 개발자모드 ON`을 한 후 서버 또는 채팅 채널을 우클릭하면 "서버 ID 복사하기"가 있습니다. 이를 통해 필요한 ID를 가져오면 됩니다.
 
 **4. 실행**
 ```
