@@ -12,11 +12,21 @@ import kr.co.devsign.devsign_backend.dto.assembly.MySubmissionsResponse;
 import kr.co.devsign.devsign_backend.dto.assembly.SaveProjectTitleRequest;
 import kr.co.devsign.devsign_backend.dto.assembly.SubmitFilesCommand;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -185,6 +195,58 @@ public class AssemblyService {
 
         reportRepository.save(report);
         return "submitted";
+    }
+
+    public ResponseEntity<byte[]> downloadFile(String path) {
+        try {
+            Path currentUploadsBase = Paths.get(System.getProperty("user.dir"), "uploads")
+                    .toAbsolutePath()
+                    .normalize();
+            Path parentUploadsBase = null;
+            Path userDir = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            if (userDir.getParent() != null) {
+                parentUploadsBase = userDir.getParent().resolve("uploads").toAbsolutePath().normalize();
+            }
+
+            String normalizedInput = path.replace("\\", "/");
+            Path resolvedPath;
+
+            // "/uploads/..." 또는 "uploads/..." 형태도 uploads 하위 경로로 해석
+            if (normalizedInput.startsWith("/uploads/") || normalizedInput.startsWith("uploads/")) {
+                String relative = normalizedInput.replaceFirst("^/?uploads/", "");
+                resolvedPath = currentUploadsBase.resolve(relative).normalize();
+            } else {
+                Path requestedPath = Paths.get(path);
+                resolvedPath = requestedPath.isAbsolute()
+                        ? requestedPath.toAbsolutePath().normalize()
+                        : currentUploadsBase.resolve(requestedPath).normalize();
+            }
+
+            // uploads 디렉터리 외부 파일 접근 차단
+            boolean allowed = resolvedPath.startsWith(currentUploadsBase)
+                    || (parentUploadsBase != null && resolvedPath.startsWith(parentUploadsBase));
+
+            if (!allowed) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new byte[0]);
+            }
+
+            if (!Files.exists(resolvedPath) || !Files.isRegularFile(resolvedPath)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new byte[0]);
+            }
+
+            byte[] data = Files.readAllBytes(resolvedPath);
+            String fileName = resolvedPath.getFileName().toString();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDisposition(ContentDisposition.attachment()
+                    .filename(fileName, StandardCharsets.UTF_8)
+                    .build());
+
+            return new ResponseEntity<>(data, headers, HttpStatus.OK);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new byte[0]);
+        }
     }
 
     private void validateUploadFiles(

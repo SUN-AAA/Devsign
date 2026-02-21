@@ -37,6 +37,11 @@ public class AssemblyController {
         return ResponseEntity.ok(assemblyService.getSubmissionPeriods(year));
     }
 
+    @GetMapping("/download")
+    public ResponseEntity<byte[]> downloadFile(@RequestParam String path) {
+        return assemblyService.downloadFile(path);
+    }
+
     @PostMapping("/project-title")
     public ResponseEntity<StatusResponse> saveProjectTitle(@RequestBody SaveProjectTitleRequest params) {
         assemblyService.saveProjectTitle(params);

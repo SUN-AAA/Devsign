@@ -13,6 +13,31 @@ export const CommunityTab = ({ onNavigate = () => { } }: { onNavigate?: (page: s
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
 
+  const normalizeText = (value?: string) => String(value || "").trim();
+  const normalizeUpper = (value?: string) => normalizeText(value).toUpperCase();
+
+  const isAdminMember = (member: any) => {
+    const role = normalizeUpper(member?.role);
+    const status = normalizeText(member?.userStatus);
+    return role.includes("ADMIN") || status === "관리자";
+  };
+
+  const isAttendingMember = (member: any) => {
+    const status = normalizeText(member?.userStatus);
+    return status === "재학생" || normalizeUpper(status) === "ATTENDING";
+  };
+
+  const isLeaveMember = (member: any) => {
+    const status = normalizeText(member?.userStatus);
+    return status === "휴학생" || normalizeUpper(status) === "LEAVE";
+  };
+
+  const isGraduateMember = (member: any) => {
+    const status = normalizeText(member?.userStatus);
+    const upper = normalizeUpper(status);
+    return status === "졸업생" || status === "일반" || upper === "ALUMNI" || upper === "GENERAL";
+  };
+
   // 현재 조회할 기준 학기 설정
   const currentTerm = { year: 2026, semester: 1 };
 
@@ -221,28 +246,28 @@ export const CommunityTab = ({ onNavigate = () => { } }: { onNavigate?: (page: s
         title="관리자"
         icon={ShieldCheck}
         colorClass="text-indigo-600"
-        filterFn={(m) => m.role === "ADMIN" || m.userStatus === "관리자"}
+        filterFn={(m) => isAdminMember(m)}
       />
       <MemberSection
         title="재학 중인 부원"
         status="재학생"
         icon={School}
         colorClass="text-green-600"
-        filterFn={(m) => m.userStatus === "재학생" && m.role !== "ADMIN"}
+        filterFn={(m) => isAttendingMember(m) && !isAdminMember(m)}
       />
       <MemberSection
         title="휴학 중인 부원"
         status="휴학생"
         icon={Coffee}
         colorClass="text-amber-600"
-        filterFn={(m) => m.userStatus === "휴학생" && m.role !== "ADMIN"}
+        filterFn={(m) => isLeaveMember(m) && !isAdminMember(m)}
       />
       <MemberSection
         title="졸업한 부원"
         status="졸업생"
         icon={GraduationCap}
         colorClass="text-slate-400"
-        filterFn={(m) => m.userStatus === "졸업생" && m.role !== "ADMIN"}
+        filterFn={(m) => isGraduateMember(m) && !isAdminMember(m)}
       />
 
       {members.length === 0 && (

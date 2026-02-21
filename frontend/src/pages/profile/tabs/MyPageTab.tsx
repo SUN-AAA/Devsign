@@ -25,6 +25,9 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
     other: File | null;
   }>({ presentation: null, pdf: null, other: null });
 
+  const isSubmittedStatus = (status?: string) =>
+    status === "SUBMITTED" || status === "제출완료";
+
   const fileRefs = {
     presentation: useRef<HTMLInputElement>(null),
     pdf: useRef<HTMLInputElement>(null),
@@ -190,9 +193,41 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
     setUploadedFiles({ ...uploadedFiles, pdf: file });
   };
 
-  const handleDownload = (path: string) => {
+  const getFilenameFromDisposition = (contentDisposition?: string, fallback = "downloaded-file") => {
+    if (!contentDisposition) return fallback;
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
+
+    const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    if (plainMatch?.[1]) return plainMatch[1];
+
+    return fallback;
+  };
+
+  const handleDownload = async (path: string) => {
     if (!path) return;
-    window.open(`${import.meta.env.VITE_API_BASE_URL}${path}`, '_blank');
+    try {
+      const response = await api.get("/assembly/download", {
+        params: { path },
+        responseType: "blob"
+      });
+
+      const fallbackName = path.split(/[\\/]/).pop() || "downloaded-file";
+      const filename = getFilenameFromDisposition(response.headers["content-disposition"], fallbackName);
+
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("파일 다운로드 실패:", e);
+      alert("파일 다운로드 중 오류가 발생했습니다.");
+    }
   };
 
   const handleSubmit = async () => {
@@ -268,7 +303,7 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
         </div>
 
         <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto">
-          <CompactStatusCard title="학기 제출 현황" value={`${reports.filter(r => r.status === "제출완료").length} / 4`} icon={<FileText size={18} />} color="indigo" />
+          <CompactStatusCard title="학기 제출 현황" value={`${reports.filter(r => isSubmittedStatus(r.status)).length} / 4`} icon={<FileText size={18} />} color="indigo" />
         </div>
       </div>
 
@@ -313,17 +348,17 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
             className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group transition-all cursor-pointer hover:shadow-xl"
           >
             <div className="flex items-center gap-6">
-              <span className={`text-2xl font-bold ${report.status === "제출완료" ? "text-indigo-600" : "text-slate-400"}`}>{report.month}월</span>
+              <span className={`text-2xl font-bold ${isSubmittedStatus(report.status) ? "text-indigo-600" : "text-slate-400"}`}>{report.month}월</span>
               <div className="h-10 w-px bg-slate-200"></div>
               <div>
                 <div className="flex items-center gap-3 mb-1.5">
-                  <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase ${report.status === "제출완료" ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-400"}`}>{report.type}</span>
+                  <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase ${isSubmittedStatus(report.status) ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-400"}`}>{report.type}</span>
                   <h4 className="font-bold text-slate-900 text-lg">
-                    {(report.status === "제출완료" && report.memo) ? report.memo : `${report.month}월 프로젝트 보고서`}
+                    {(isSubmittedStatus(report.status) && report.memo) ? report.memo : `${report.month}월 프로젝트 보고서`}
                   </h4>
                 </div>
                 <div className="flex items-center gap-4 text-[11px] text-slate-400 font-bold uppercase">
-                  {report.status === "제출완료" ? (
+                  {isSubmittedStatus(report.status) ? (
                     <span className="flex items-center gap-1.5 text-indigo-500"><Check size={14} /> {report.date || "최근"} 제출됨 (클릭하여 확인)</span>
                   ) : report.isWithinPeriod ? (
                     <span className="flex items-center gap-1.5 text-green-500 font-black"><Clock size={14} /> 현재 제출 가능 (~{report.endDate})</span>
@@ -335,8 +370,8 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
                 </div>
               </div>
             </div>
-            <span className={`text-[10px] font-bold px-4 py-2 rounded-full border ${report.status === "제출완료" ? "text-green-600 bg-green-50 border-green-100" : report.isWithinPeriod ? "text-indigo-600 bg-indigo-50 border-indigo-100" : "text-orange-600 bg-orange-50 border-orange-100"}`}>
-              {report.status === "제출완료" ? "제출완료" : report.isWithinPeriod ? "제출가능" : "제출불가"}
+            <span className={`text-[10px] font-bold px-4 py-2 rounded-full border ${isSubmittedStatus(report.status) ? "text-green-600 bg-green-50 border-green-100" : report.isWithinPeriod ? "text-indigo-600 bg-indigo-50 border-indigo-100" : "text-orange-600 bg-orange-50 border-orange-100"}`}>
+              {isSubmittedStatus(report.status) ? "제출완료" : report.isWithinPeriod ? "제출가능" : "제출불가"}
             </span>
           </motion.div>
         ))}
@@ -351,7 +386,7 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
                 <div>
                   <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-lg uppercase border border-indigo-100">{selectedReport.month}월 자료</span>
                   <h3 className="text-3xl font-bold text-slate-900 mt-2">
-                    {selectedReport.status === "제출완료" ? (selectedReport.isWithinPeriod ? "제출 내용 수정" : "제출 자료 확인") : "신규 자료 제출"}
+                    {isSubmittedStatus(selectedReport.status) ? (selectedReport.isWithinPeriod ? "제출 내용 수정" : "제출 자료 확인") : "신규 자료 제출"}
                   </h3>
                 </div>
                 <button onClick={() => setSelectedReport(null)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100"><X size={20} /></button>
@@ -436,7 +471,7 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
                     disabled={!canSubmit || isLoading}
                     className={`flex-2 px-8 py-5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${canSubmit && !isLoading ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
                   >
-                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : (selectedReport.status === "제출완료" ? "수정 내용 저장" : "제출 완료하기")}
+                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : (isSubmittedStatus(selectedReport.status) ? "수정 내용 저장" : "제출 완료하기")}
                   </button>
                 )}
               </div>

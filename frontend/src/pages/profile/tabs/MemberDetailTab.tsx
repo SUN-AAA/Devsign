@@ -26,6 +26,9 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
   const termMenuRef = useRef<HTMLDivElement>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
 
+  const isSubmittedStatus = (status?: string) =>
+    status === "SUBMITTED" || status === "제출완료";
+
   const termOptions = [
     { year: 2026, semester: 1, label: "2026학년도 1학기" },
     { year: 2026, semester: 2, label: "2026학년도 2학기" },
@@ -58,11 +61,15 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
     const fetchFullData = async () => {
       setIsLoading(true);
       try {
-        // 1. 전체 부원 목록 조회 (AdminController: /api/admin/members)
-        const memberRes = await api.get(`/admin/members`);
+        // 1. 전체 부원 목록 조회 (MemberController: /api/members/all)
+        // 커뮤니티 탭에서는 일반 사용자도 접근하므로 관리자 전용 API를 사용하지 않습니다.
+        const memberRes = await api.get(`/members/all`);
 
         // 고유 식별자인 loginId를 통해 해당 부원 정보를 찾습니다.
-        const targetMember = memberRes.data.find((m: any) => m.loginId === loginId);
+        // 기존 데이터/라우팅 호환을 위해 id 문자열 매칭도 보조로 허용합니다.
+        const targetMember = memberRes.data.find(
+          (m: any) => String(m.loginId) === String(loginId) || String(m.id) === String(loginId)
+        );
 
         if (!targetMember) {
           console.error(`아이디 ${loginId}에 해당하는 부원이 목록에 없습니다.`);
@@ -73,7 +80,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
         // 2. 해당 부원의 이번 학기 제출 현황 조회 (AssemblyController: /api/assembly/my-submissions)
         const submissionRes = await api.get(`/assembly/my-submissions`, {
           params: {
-            loginId: loginId,
+            loginId: targetMember.loginId,
             year: selectedTerm.year,
             semester: selectedTerm.semester
           }
@@ -111,15 +118,76 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 파일 다운로드 URL 생성 (AssemblyController: /api/assembly/download 연동)
-  const getFileUrl = (path: string) => {
-    if (!path) return null;
-    return `${import.meta.env.VITE_API_BASE_URL}/api/assembly/download?path=${encodeURIComponent(path)}`;
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) {
+        window.URL.revokeObjectURL(previewPdfUrl);
+      }
+    };
+  }, [previewPdfUrl]);
+
+  const getFilenameFromDisposition = (contentDisposition?: string, fallback = "downloaded-file") => {
+    if (!contentDisposition) return fallback;
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
+
+    const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    if (plainMatch?.[1]) return plainMatch[1];
+
+    return fallback;
   };
 
-  const handleDownload = (path: string) => {
-    const url = getFileUrl(path);
-    if (url) window.location.href = url;
+  const closePreviewPdf = () => {
+    if (previewPdfUrl) {
+      window.URL.revokeObjectURL(previewPdfUrl);
+    }
+    setPreviewPdfUrl(null);
+  };
+
+  const handleDownload = async (path: string) => {
+    if (!path) return;
+    try {
+      const response = await api.get("/assembly/download", {
+        params: { path },
+        responseType: "blob"
+      });
+
+      const fallbackName = path.split(/[\\/]/).pop() || "downloaded-file";
+      const filename = getFilenameFromDisposition(response.headers["content-disposition"], fallbackName);
+
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("파일 다운로드 실패:", e);
+      alert("파일 다운로드 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handlePreviewPdf = async (path: string) => {
+    if (!path) return;
+    try {
+      if (previewPdfUrl) {
+        window.URL.revokeObjectURL(previewPdfUrl);
+      }
+
+      const response = await api.get("/assembly/download", {
+        params: { path },
+        responseType: "blob"
+      });
+
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      setPreviewPdfUrl(blobUrl);
+    } catch (e) {
+      console.error("PDF 미리보기 로드 실패:", e);
+      alert("PDF 미리보기를 불러오는 중 오류가 발생했습니다.");
+    }
   };
 
   if (isLoading) {
@@ -196,24 +264,26 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
           reports.map((report) => (
             <motion.div
               key={report.id}
-              whileHover={report.status === "제출완료" ? { scale: 1.01, y: -2 } : {}}
-              onClick={() => report.status === "제출완료" && setSelectedReport(report)}
-              className={`bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between transition-all group ${report.status === "제출완료" ? "hover:shadow-xl cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
+              whileHover={isSubmittedStatus(report.status) ? { scale: 1.01, y: -2 } : {}}
+              onClick={() => isSubmittedStatus(report.status) && setSelectedReport(report)}
+              className={`bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between transition-all group ${isSubmittedStatus(report.status) ? "hover:shadow-xl cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-6">
-                <span className={`text-2xl font-[900] tracking-tight shrink-0 ${report.status === "제출완료" ? "text-indigo-600" : "text-slate-400"}`}>{report.month}월</span>
+                <span className={`text-2xl font-[900] tracking-tight shrink-0 ${isSubmittedStatus(report.status) ? "text-indigo-600" : "text-slate-400"}`}>{report.month}월</span>
                 <div className="h-10 w-px bg-slate-200"></div>
                 <div>
                   <div className="flex items-center gap-3 mb-1.5">
-                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${report.status === "제출완료" ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-400"}`}>{report.type}</span>
-                    <h4 className="font-bold text-slate-900 text-lg">{report.title || `${report.month}월 자료 미제출`}</h4>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${isSubmittedStatus(report.status) ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-400"}`}>{report.type}</span>
+                    <h4 className="font-bold text-slate-900 text-lg">
+                      {report.title || (isSubmittedStatus(report.status) ? `${report.month}월 제출 자료` : `${report.month}월 자료 미제출`)}
+                    </h4>
                   </div>
                   <div className="text-[11px] text-slate-400 font-black flex items-center gap-1.5 uppercase">
-                    {report.status === "제출완료" ? <><Check size={14} className="text-indigo-500" /> {report.date} 제출됨</> : <><Clock size={14} /> 기록이 없습니다</>}
+                    {isSubmittedStatus(report.status) ? <><Check size={14} className="text-indigo-500" /> {report.date} 제출됨</> : <><Clock size={14} /> 기록이 없습니다</>}
                   </div>
                 </div>
               </div>
-              {report.status === "제출완료" && <div className="p-4 bg-slate-50 text-slate-300 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all"><Download size={20} /></div>}
+              {isSubmittedStatus(report.status) && <div className="p-4 bg-slate-50 text-slate-300 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all"><Download size={20} /></div>}
             </motion.div>
           ))
         )}
@@ -243,7 +313,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">첨부 파일 (확인 및 다운로드)</p>
                 <div className="grid grid-cols-1 gap-3">
                   <DownloadSlot label="발표자료 (PPT)" path={selectedReport.presentationPath} onDownload={() => handleDownload(selectedReport.presentationPath)} />
-                  <DownloadSlot label="PDF 보고서" path={selectedReport.pdfPath} onDownload={() => handleDownload(selectedReport.pdfPath)} onPreview={() => setPreviewPdfUrl(getFileUrl(selectedReport.pdfPath))} />
+                  <DownloadSlot label="PDF 보고서" path={selectedReport.pdfPath} onDownload={() => handleDownload(selectedReport.pdfPath)} onPreview={() => handlePreviewPdf(selectedReport.pdfPath)} />
                   <DownloadSlot label="기타 부속 자료" path={selectedReport.otherPath} onDownload={() => handleDownload(selectedReport.otherPath)} />
                 </div>
               </div>
@@ -257,14 +327,14 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
       <AnimatePresence>
         {previewPdfUrl && (
           <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 md:p-10">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setPreviewPdfUrl(null)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={closePreviewPdf} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-5xl bg-white h-full rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><FileText size={20} /></div>
                   <span className="font-black text-slate-900">PDF 미리보기</span>
                 </div>
-                <button onClick={() => setPreviewPdfUrl(null)} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all"><X size={20} /></button>
+                <button onClick={closePreviewPdf} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all"><X size={20} /></button>
               </div>
               <div className="flex-1 bg-slate-100 relative">
                 <iframe src={`${previewPdfUrl}#toolbar=0`} className="w-full h-full border-none" title="PDF Preview" />
