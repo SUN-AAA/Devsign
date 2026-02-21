@@ -1,11 +1,11 @@
 import { api } from "../../../api/axios";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  FileText, Check, Clock, X, 
+import {
+  FileText, Check, Clock, X,
   Download, Presentation, CalendarDays, ChevronDown,
   Edit2, Save, MessageCircle, Upload, FileArchive, Loader2,
-  AlertCircle, Lock
+  Lock
 } from "lucide-react";
 
 
@@ -43,7 +43,7 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
 
   // 2. 학기 목록 생성
   const semesterOptions = useMemo(() => {
-    const startYear = 2026; 
+    const startYear = 2026;
     const options = [];
     let tempYear = startYear;
     let tempSem = 1;
@@ -59,13 +59,13 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
 
   // 3. 데이터 로드 함수 (제출 현황 + 프로젝트 제목 + 제출 기간 포함)
   const fetchSubmissions = async () => {
-    if (!loginId || loginId === "undefined") return; 
+    if (!loginId || loginId === "undefined") return;
     try {
       // ✅ 제출 현황 및 제목 로드
       const res = await api.get(`/assembly/my-submissions`, {
         params: { loginId, year: selectedTerm.year, semester: selectedTerm.semester }
       });
-      
+
       // ✅ 관리자가 설정한 제출 기간 로드
       const periodRes = await api.get(`/admin/periods/${selectedTerm.year}`);
 
@@ -89,15 +89,15 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
     const today = new Date().toISOString().split('T')[0];
 
     return targetMonths.map(month => {
-      const serverData = reports.find(r => 
+      const serverData = reports.find(r =>
         Number(r.month) === Number(month) &&
         Number(r.year) === Number(selectedTerm.year) &&
         Number(r.semester) === Number(selectedTerm.semester)
       );
 
       // ✨ 해당 월의 제출 기간 정보 찾기
-      const periodInfo = submissionPeriods.find(p => 
-        Number(p.month) === Number(month) && 
+      const periodInfo = submissionPeriods.find(p =>
+        Number(p.month) === Number(month) &&
         Number(p.semester) === Number(selectedTerm.semester)
       );
 
@@ -133,16 +133,16 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
     }
     try {
       await api.post(`/assembly/project-title`, {
-        loginId, 
-        year: selectedTerm.year, 
-        semester: selectedTerm.semester, 
+        loginId,
+        year: selectedTerm.year,
+        semester: selectedTerm.semester,
         title: projectTitle
       });
       setIsEditingProject(false);
       alert("프로젝트 명이 저장되었습니다.");
-      await fetchSubmissions(); 
-    } catch (e: any) { 
-      alert("제목 저장 실패: " + (e.response?.data || e.message)); 
+      await fetchSubmissions();
+    } catch (e: any) {
+      alert("제목 저장 실패: " + (e.response?.data || e.message));
     }
   };
 
@@ -155,7 +155,7 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
 
   const handleDownload = (path: string) => {
     if (!path) return;
-    window.open(`http://localhost:8080${path}`, '_blank');
+    window.open(`${import.meta.env.VITE_API_BASE_URL}${path}`, '_blank');
   };
 
   const handleSubmit = async () => {
@@ -169,15 +169,15 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
     try {
       const formData = new FormData();
       formData.append("loginId", loginId);
-      
+
       const rId = selectedReport.id?.toString() || "0";
       formData.append("reportId", rId.includes("temp") ? "0" : rId);
-      
+
       formData.append("month", selectedReport.month.toString());
       formData.append("year", selectedTerm.year.toString());
       formData.append("semester", selectedTerm.semester.toString());
-      formData.append("memo", submissionMemo); 
-      
+      formData.append("memo", submissionMemo);
+
       if (uploadedFiles.presentation) formData.append("presentation", uploadedFiles.presentation);
       if (uploadedFiles.pdf) formData.append("pdf", uploadedFiles.pdf);
       if (uploadedFiles.other) formData.append("other", uploadedFiles.other);
@@ -186,22 +186,22 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
 
       alert("제출이 완료되었습니다! 🎉");
       setSelectedReport(null);
-      await fetchSubmissions(); 
+      await fetchSubmissions();
     } catch (e: any) {
       alert(`제출 실패: ${e.response?.data || e.message}`);
     } finally {
-      setIsLoading(false); 
+      setIsLoading(false);
     }
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pb-20">
-      
+
       <div className="flex flex-col xl:flex-row justify-between items-center mb-12 gap-4">
         <div className="relative w-full xl:w-auto h-16">
           <div className="flex items-center gap-4 bg-white px-6 h-full rounded-[1.5rem] border border-slate-100 shadow-sm">
             <CalendarDays className="text-indigo-600" size={20} />
-            <select 
+            <select
               value={`${selectedTerm.year}-${selectedTerm.semester}`}
               onChange={(e) => {
                 const [y, s] = e.target.value.split("-").map(Number);
@@ -228,13 +228,13 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
           <div className="relative group max-w-md w-full flex justify-end">
             {isEditingProject ? (
               <div className="flex items-center gap-2 w-full justify-end">
-                <input 
-                  type="text" 
-                  autoFocus 
-                  value={projectTitle} 
-                  onChange={(e) => setProjectTitle(e.target.value)} 
+                <input
+                  type="text"
+                  autoFocus
+                  value={projectTitle}
+                  onChange={(e) => setProjectTitle(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveProjectTitle()}
-                  className="w-full md:w-80 bg-slate-100 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 text-sm text-right" 
+                  className="w-full md:w-80 bg-slate-100 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 text-sm text-right"
                 />
                 <button onClick={handleSaveProjectTitle} className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-colors">
                   <Save size={16} />
@@ -250,10 +250,10 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
             )}
           </div>
         </div>
-        
+
         {displayReports.map((report) => (
-          <motion.div 
-            key={report.id} 
+          <motion.div
+            key={report.id}
             whileHover={{ scale: 1.01, y: -2 }}
             onClick={() => {
               setSelectedReport(report);
@@ -320,47 +320,47 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
 
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-3 ml-1"><MessageCircle size={16} className="text-indigo-500" /><p className="text-xs font-bold text-slate-400 uppercase tracking-widest">활동 요약</p></div>
-                <textarea 
-                  value={submissionMemo} 
-                  onChange={(e) => setSubmissionMemo(e.target.value)} 
+                <textarea
+                  value={submissionMemo}
+                  onChange={(e) => setSubmissionMemo(e.target.value)}
                   disabled={!selectedReport.isWithinPeriod}
-                  placeholder="활동 내용을 입력해주세요." 
-                  className="w-full p-5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm min-h-[100px] disabled:opacity-50" 
+                  placeholder="활동 내용을 입력해주세요."
+                  className="w-full p-5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm min-h-[100px] disabled:opacity-50"
                 />
               </div>
 
               <div className="space-y-4 mb-8">
                 <p className="text-xs font-bold text-slate-400 ml-1 uppercase">제출 파일 관리</p>
                 <div className="grid grid-cols-1 gap-3">
-                  <input type="file" ref={fileRefs.presentation} className="hidden" onChange={(e) => setUploadedFiles({...uploadedFiles, presentation: e.target.files![0]})} />
-                  <input type="file" ref={fileRefs.pdf} className="hidden" onChange={(e) => setUploadedFiles({...uploadedFiles, pdf: e.target.files![0]})} />
-                  <input type="file" ref={fileRefs.other} className="hidden" onChange={(e) => setUploadedFiles({...uploadedFiles, other: e.target.files![0]})} />
-                  
-                  <UploadSlot 
-                    label="발표자료" 
-                    required={selectedReport.status !== "제출완료"} 
+                  <input type="file" ref={fileRefs.presentation} className="hidden" onChange={(e) => setUploadedFiles({ ...uploadedFiles, presentation: e.target.files![0] })} />
+                  <input type="file" ref={fileRefs.pdf} className="hidden" onChange={(e) => setUploadedFiles({ ...uploadedFiles, pdf: e.target.files![0] })} />
+                  <input type="file" ref={fileRefs.other} className="hidden" onChange={(e) => setUploadedFiles({ ...uploadedFiles, other: e.target.files![0] })} />
+
+                  <UploadSlot
+                    label="발표자료"
+                    required={selectedReport.status !== "제출완료"}
                     disabled={!selectedReport.isWithinPeriod}
                     existingPath={selectedReport.presentationPath}
-                    fileName={uploadedFiles.presentation?.name} 
+                    fileName={uploadedFiles.presentation?.name}
                     onDownload={() => handleDownload(selectedReport.presentationPath)}
-                    onClick={() => selectedReport.isWithinPeriod && fileRefs.presentation.current?.click()} 
+                    onClick={() => selectedReport.isWithinPeriod && fileRefs.presentation.current?.click()}
                   />
-                  <UploadSlot 
-                    label="PDF" 
-                    required={selectedReport.status !== "제출완료"} 
+                  <UploadSlot
+                    label="PDF"
+                    required={selectedReport.status !== "제출완료"}
                     disabled={!selectedReport.isWithinPeriod}
                     existingPath={selectedReport.pdfPath}
-                    fileName={uploadedFiles.pdf?.name} 
+                    fileName={uploadedFiles.pdf?.name}
                     onDownload={() => handleDownload(selectedReport.pdfPath)}
-                    onClick={() => selectedReport.isWithinPeriod && fileRefs.pdf.current?.click()} 
+                    onClick={() => selectedReport.isWithinPeriod && fileRefs.pdf.current?.click()}
                   />
-                  <UploadSlot 
-                    label="기타 자료" 
+                  <UploadSlot
+                    label="기타 자료"
                     disabled={!selectedReport.isWithinPeriod}
                     existingPath={selectedReport.otherPath}
-                    fileName={uploadedFiles.other?.name} 
+                    fileName={uploadedFiles.other?.name}
                     onDownload={() => handleDownload(selectedReport.otherPath)}
-                    onClick={() => selectedReport.isWithinPeriod && fileRefs.other.current?.click()} 
+                    onClick={() => selectedReport.isWithinPeriod && fileRefs.other.current?.click()}
                   />
                 </div>
               </div>
@@ -369,9 +369,9 @@ export const MyPageTab = ({ loginId }: { loginId: string }) => {
                 <button onClick={() => setSelectedReport(null)} className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-2xl font-bold hover:bg-slate-100 transition-all">닫기</button>
                 {/* ✨ 제출 기간 내일 때만 제출/수정 버튼 표시 */}
                 {selectedReport.isWithinPeriod && (
-                  <button 
-                    onClick={handleSubmit} 
-                    disabled={!canSubmit || isLoading} 
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit || isLoading}
                     className={`flex-2 px-8 py-5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${canSubmit && !isLoading ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
                   >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : (selectedReport.status === "제출완료" ? "수정 내용 저장" : "제출 완료하기")}

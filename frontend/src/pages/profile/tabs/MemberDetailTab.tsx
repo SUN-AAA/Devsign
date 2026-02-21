@@ -1,10 +1,10 @@
 import { api } from "../../../api/axios";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, FileText, Check, Clock, X, 
-  Download, Presentation, CalendarDays, MessageCircle, 
-  FileArchive, ExternalLink, Loader2, ChevronDown, Eye 
+import {
+  ArrowLeft, FileText, Check, Clock, X,
+  Download, Presentation, CalendarDays, MessageCircle,
+  FileArchive, ExternalLink, Loader2, ChevronDown, Eye
 } from "lucide-react";
 
 
@@ -19,7 +19,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
   const [memberInfo, setMemberInfo] = useState<any>(null);
   const [reports, setReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // 학기 선택 상태 (기본 2026년 1학기)
   const [selectedTerm, setSelectedTerm] = useState({ year: 2026, semester: 1 });
   const [isTermMenuOpen, setIsTermMenuOpen] = useState(false);
@@ -35,7 +35,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
   const formatStudentId = (id: string) => {
     if (!id) return "??";
     const strId = String(id).trim();
-    
+
     // 1. 이미 '학번' 글자가 포함되어 있다면 그대로 반환
     if (strId.includes("학번")) return strId;
 
@@ -60,10 +60,10 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
       try {
         // 1. 전체 부원 목록 조회 (AdminController: /api/admin/members)
         const memberRes = await api.get(`/admin/members`);
-        
+
         // 고유 식별자인 loginId를 통해 해당 부원 정보를 찾습니다.
         const targetMember = memberRes.data.find((m: any) => m.loginId === loginId);
-        
+
         if (!targetMember) {
           console.error(`아이디 ${loginId}에 해당하는 부원이 목록에 없습니다.`);
           setMemberInfo(null);
@@ -72,7 +72,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
 
         // 2. 해당 부원의 이번 학기 제출 현황 조회 (AssemblyController: /api/assembly/my-submissions)
         const submissionRes = await api.get(`/assembly/my-submissions`, {
-          params: { 
+          params: {
             loginId: loginId,
             year: selectedTerm.year,
             semester: selectedTerm.semester
@@ -86,9 +86,9 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
           displayStudentId: formatStudentId(targetMember.studentId),
           projectTitle: submissionRes.data.projectTitle
         });
-        
+
         setReports(submissionRes.data.reports || []);
-        
+
       } catch (e) {
         console.error("데이터 로딩 중 에러 발생:", e);
         setMemberInfo(null);
@@ -114,7 +114,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
   // 파일 다운로드 URL 생성 (AssemblyController: /api/assembly/download 연동)
   const getFileUrl = (path: string) => {
     if (!path) return null;
-    return `http://localhost:8080/api/assembly/download?path=${encodeURIComponent(path)}`;
+    return `${import.meta.env.VITE_API_BASE_URL}/api/assembly/download?path=${encodeURIComponent(path)}`;
   };
 
   const handleDownload = (path: string) => {
@@ -146,7 +146,7 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="pb-20">
-      
+
       {/* 🔙 헤더 영역 (이름 + 학번) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
         <div className="flex items-center gap-6">
@@ -194,8 +194,8 @@ export const MemberDetailTab = ({ loginId, onBack }: MemberDetailProps) => {
           <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200 text-slate-400 font-bold">해당 학기에 생성된 리포트가 없습니다.</div>
         ) : (
           reports.map((report) => (
-            <motion.div 
-              key={report.id} 
+            <motion.div
+              key={report.id}
               whileHover={report.status === "제출완료" ? { scale: 1.01, y: -2 } : {}}
               onClick={() => report.status === "제출완료" && setSelectedReport(report)}
               className={`bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between transition-all group ${report.status === "제출완료" ? "hover:shadow-xl cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
