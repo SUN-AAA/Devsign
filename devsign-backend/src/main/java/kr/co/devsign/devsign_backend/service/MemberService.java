@@ -89,7 +89,7 @@ public class MemberService {
     }
 
     public List<MemberResponse> getAllMembers() {
-        return memberRepository.findAll().stream()
+        return memberRepository.findByDeletedFalseOrderByStudentIdDesc().stream()
                 .map(this::toMemberResponse)
                 .toList();
     }
@@ -99,6 +99,22 @@ public class MemberService {
 
         if (memberOpt.isPresent() && passwordEncoder.matches(loginRequest.password(), memberOpt.get().getPassword())) {
             Member m = memberOpt.get();
+
+            if (m.isDeleted()) {
+                return new LoginResponse(
+                        "fail",
+                        "account deleted",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+            }
 
             if (m.isSuspended()) {
                 return new LoginResponse(

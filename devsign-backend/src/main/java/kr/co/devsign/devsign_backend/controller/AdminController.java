@@ -3,6 +3,7 @@ package kr.co.devsign.devsign_backend.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import kr.co.devsign.devsign_backend.dto.admin.AccessLogResponse;
 import kr.co.devsign.devsign_backend.dto.admin.AdminMemberResponse;
+import kr.co.devsign.devsign_backend.dto.admin.AdminPasswordVerifyRequest;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodResponse;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodSaveRequest;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodSubmissionResponse;
@@ -14,6 +15,7 @@ import kr.co.devsign.devsign_backend.dto.admin.SyncDiscordResponse;
 import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
 import kr.co.devsign.devsign_backend.service.AdminService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +31,11 @@ public class AdminController {
     @GetMapping("/members")
     public List<AdminMemberResponse> getAllMembers() {
         return adminService.getAllMembers();
+    }
+
+    @GetMapping("/members/deleted")
+    public List<AdminMemberResponse> getDeletedMembers() {
+        return adminService.getDeletedMembers();
     }
 
     @GetMapping("/logs")
@@ -92,5 +99,13 @@ public class AdminController {
             HttpServletRequest request
     ) {
         return adminService.deleteMember(id, hard, request.getRemoteAddr());
+    }
+
+    @PostMapping("/verify-password")
+    public StatusResponse verifyAdminPassword(
+            @RequestBody AdminPasswordVerifyRequest request,
+            Authentication authentication
+    ) {
+        return adminService.verifyAdminPassword(authentication, request);
     }
 }

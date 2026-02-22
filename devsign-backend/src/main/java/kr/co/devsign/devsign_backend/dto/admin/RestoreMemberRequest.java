@@ -1,6 +1,7 @@
 package kr.co.devsign.devsign_backend.dto.admin;
 
 public record RestoreMemberRequest(
+        Long id,
         String loginId,
         String password,
         String name,

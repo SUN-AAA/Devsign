@@ -11,6 +11,7 @@ public record AdminMemberResponse(
         String userStatus,
         String role,
         boolean suspended,
-        String profileImage
+        String profileImage,
+        String deletedAt
 ) {
 }

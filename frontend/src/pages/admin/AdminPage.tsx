@@ -25,13 +25,17 @@ type LogType = "LOGIN" | "LOGOUT" | "SIGNUP"
 
 interface Member {
   id: number;
+  loginId?: string;
+  password?: string;
   name: string;
   studentId: string;
   dept: string;
+  interests?: string;
   userStatus: string;
   discordTag: string;
   suspended: boolean;
   role: string;
+  profileImage?: string;
   deletedAt?: string;
 }
 
@@ -72,8 +76,10 @@ export const AdminPage = () => {
   const fetchAdminData = async () => {
     try {
       const memberRes = await api.get("/admin/members");
+      const deletedRes = await api.get("/admin/members/deleted");
       const logRes = await api.get("/admin/logs");
       setMembers(memberRes.data);
+      setDeletedMembers(deletedRes.data);
       setAccessLogs(logRes.data);
     } catch (e) {
       console.error("데이터 로드 실패", e);
@@ -161,12 +167,32 @@ export const AdminPage = () => {
   };
 
   const restoreMember = async (member: Member) => {
+    if (!member.loginId) {
+      alert("복구에 필요한 로그인 ID 정보가 없습니다.");
+      return;
+    }
+
     try {
-      const res = await api.post("/admin/members/restore", member);
+      const res = await api.post("/admin/members/restore", {
+        id: member.id,
+        loginId: member.loginId,
+        password: member.password,
+        name: member.name,
+        studentId: member.studentId,
+        dept: member.dept,
+        interests: member.interests ?? "",
+        discordTag: member.discordTag,
+        userStatus: member.userStatus,
+        role: member.role,
+        suspended: member.suspended,
+        profileImage: member.profileImage ?? null
+      });
       if (res.data.status === "success") {
         setDeletedMembers(prev => prev.filter(m => m.id !== member.id));
         fetchAdminData();
-        alert(`${member.name} 부원의 계정이 복구되었습니다. ✨`);
+        alert(`${member.name} 부원의 계정이 복구되었습니다.`);
+      } else {
+        alert(res.data.message || "복구 실패");
       }
     } catch (e) { alert("복구 실패"); }
   };
@@ -178,22 +204,28 @@ export const AdminPage = () => {
   };
 
   const confirmDelete = async () => {
-    if (adminPassword === "1234") {
-      try {
-        await api.delete(`/admin/members/${memberToDelete?.id}?hard=${isHardDelete}`);
-        if (isHardDelete) {
-          setDeletedMembers(prev => prev.filter(m => m.id !== memberToDelete?.id));
-          alert("영구 삭제되었습니다.");
-        } else {
-          const archiveMember = { ...memberToDelete!, deletedAt: new Date().toISOString() };
-          setDeletedMembers([archiveMember, ...deletedMembers]);
-          setMembers(members.filter(m => m.id !== memberToDelete?.id));
-          alert("삭제 기록으로 이동되었습니다.");
-        }
-        fetchAdminData();
-        closeDeleteModal();
-      } catch (e) { alert("삭제 실패"); }
-    } else { alert("비밀번호 불일치"); }
+    if (!memberToDelete) return;
+
+    try {
+      const verifyRes = await api.post("/admin/verify-password", {
+        password: adminPassword
+      });
+      if (verifyRes.data.status !== "success") {
+        alert("비밀번호 불일치");
+        return;
+      }
+
+      await api.delete(`/admin/members/${memberToDelete.id}?hard=${isHardDelete}`);
+      if (isHardDelete) {
+        alert("영구 삭제되었습니다.");
+      } else {
+        alert("삭제 기록으로 이동되었습니다.");
+      }
+      fetchAdminData();
+      closeDeleteModal();
+    } catch (e) {
+      alert("삭제 실패");
+    }
   };
 
   const closeDeleteModal = () => {
@@ -220,6 +252,35 @@ export const AdminPage = () => {
 
   const isAdminMember = (member: Member) =>
     String(member.role || "").trim().toUpperCase().includes("ADMIN");
+
+  const normalizeStatus = (value?: string) => String(value || "").trim().toUpperCase();
+  const isAttendingStatus = (value?: string) => {
+    const raw = String(value || "").trim();
+    const upper = normalizeStatus(value);
+    return raw === "재학생" || upper === "ATTENDING";
+  };
+  const isLeaveStatus = (value?: string) => {
+    const raw = String(value || "").trim();
+    const upper = normalizeStatus(value);
+    return raw === "휴학생" || upper === "LEAVE";
+  };
+  const isLabStatus = (value?: string) => {
+    const raw = String(value || "").trim();
+    const upper = normalizeStatus(value);
+    return raw === "LAB" || raw === "대학원" || upper === "LAB" || upper === "GRADUATE";
+  };
+  const isFreshmanStatus = (value?: string) => {
+    const raw = String(value || "").trim();
+    const upper = normalizeStatus(value);
+    return raw === "신입생" || upper === "FRESHMAN" || upper === "NEWBIE" || upper === "NEW";
+  };
+  const isGraduateStatus = (value?: string) => {
+    const raw = String(value || "").trim();
+    const upper = normalizeStatus(value);
+    return raw === "졸업생" || raw === "일반" || upper === "ALUMNI" || upper === "GENERAL" || upper === "GRADUATED";
+  };
+  const isOtherStatus = (value?: string) =>
+    !isAttendingStatus(value) && !isLeaveStatus(value) && !isLabStatus(value) && !isFreshmanStatus(value) && !isGraduateStatus(value);
 
   const handleDiscordSync = async () => {
     setIsSyncing(true);
@@ -352,10 +413,12 @@ export const AdminPage = () => {
             </div>
 
             <MemberTable title="관리자" icon={ShieldCheck} data={members.filter(m => isAdminMember(m))} colorClass="text-indigo-600" />
-            <MemberTable title="재학 부원" icon={School} data={members.filter(m => m.userStatus === "재학생" && !isAdminMember(m))} colorClass="text-green-600" />
-            <MemberTable title="LAB / 대학원" icon={BookOpen} data={members.filter(m => (m.userStatus === "LAB" || m.userStatus === "대학원") && !isAdminMember(m))} colorClass="text-indigo-600" />
-            <MemberTable title="휴학 부원" icon={Coffee} data={members.filter(m => m.userStatus === "휴학생" && !isAdminMember(m))} colorClass="text-amber-600" />
-            <MemberTable title="졸업 / 기타" icon={GraduationCap} data={members.filter(m => (m.userStatus === "졸업생" || m.userStatus === "일반") && !isAdminMember(m))} colorClass="text-slate-400" />
+            <MemberTable title="신입생 부원" icon={UserPlus} data={members.filter(m => isFreshmanStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-cyan-600" />
+            <MemberTable title="재학 부원" icon={School} data={members.filter(m => isAttendingStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-green-600" />
+            <MemberTable title="LAB / 대학원" icon={BookOpen} data={members.filter(m => isLabStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-indigo-600" />
+            <MemberTable title="휴학 부원" icon={Coffee} data={members.filter(m => isLeaveStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-amber-600" />
+            <MemberTable title="졸업 부원" icon={GraduationCap} data={members.filter(m => isGraduateStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-slate-400" />
+            <MemberTable title="기타 상태" icon={Users} data={members.filter(m => isOtherStatus(m.userStatus) && !isAdminMember(m))} colorClass="text-slate-500" />
 
             {searchQuery !== "" && getFilteredAndSortedMembers(members).length === 0 && (
               <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">

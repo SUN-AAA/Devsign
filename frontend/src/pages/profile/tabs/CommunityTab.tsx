@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Search, ChevronRight, School, Coffee, GraduationCap,
+  Search, ChevronRight, School, Coffee, GraduationCap, BookOpen, UserPlus,
   Loader2, AlertCircle, Users, ShieldCheck
 } from "lucide-react";
 import { api } from "../../../api/axios";
@@ -15,27 +15,46 @@ export const CommunityTab = ({ onNavigate = () => { } }: { onNavigate?: (page: s
 
   const normalizeText = (value?: string) => String(value || "").trim();
   const normalizeUpper = (value?: string) => normalizeText(value).toUpperCase();
-
-  const isAdminMember = (member: any) => {
+  const statusKey = (member: any) => {
     const role = normalizeUpper(member?.role);
     const status = normalizeText(member?.userStatus);
-    return role.includes("ADMIN") || status === "관리자";
+    const upper = normalizeUpper(status);
+
+    if (role.includes("ADMIN") || status === "관리자") return "ADMIN";
+    if (status === "재학생" || upper === "ATTENDING") return "ATTENDING";
+    if (status === "신입생" || upper === "FRESHMAN" || upper === "NEWBIE" || upper === "NEW") return "FRESHMAN";
+    if (status === "휴학생" || upper === "LEAVE") return "LEAVE";
+    if (status === "LAB" || status === "대학원" || upper === "LAB" || upper === "GRADUATE") return "LAB";
+    if (status === "졸업생" || status === "일반" || upper === "ALUMNI" || upper === "GENERAL" || upper === "GRADUATED") return "GRADUATE";
+    return "OTHER";
+  };
+
+  const isAdminMember = (member: any) => {
+    return statusKey(member) === "ADMIN";
   };
 
   const isAttendingMember = (member: any) => {
-    const status = normalizeText(member?.userStatus);
-    return status === "재학생" || normalizeUpper(status) === "ATTENDING";
+    return statusKey(member) === "ATTENDING";
   };
 
   const isLeaveMember = (member: any) => {
-    const status = normalizeText(member?.userStatus);
-    return status === "휴학생" || normalizeUpper(status) === "LEAVE";
+    return statusKey(member) === "LEAVE";
+  };
+
+  const isFreshmanMember = (member: any) => {
+    return statusKey(member) === "FRESHMAN";
+  };
+
+  const isLabMember = (member: any) => {
+    return statusKey(member) === "LAB";
   };
 
   const isGraduateMember = (member: any) => {
-    const status = normalizeText(member?.userStatus);
-    const upper = normalizeUpper(status);
-    return status === "졸업생" || status === "일반" || upper === "ALUMNI" || upper === "GENERAL";
+    return statusKey(member) === "GRADUATE";
+  };
+
+  const isOtherMember = (member: any) => {
+    return statusKey(member) === "OTHER";
   };
 
   // 현재 조회할 기준 학기 설정
@@ -249,6 +268,13 @@ export const CommunityTab = ({ onNavigate = () => { } }: { onNavigate?: (page: s
         filterFn={(m) => isAdminMember(m)}
       />
       <MemberSection
+        title="신입생 부원"
+        status="신입생"
+        icon={UserPlus}
+        colorClass="text-cyan-600"
+        filterFn={(m) => isFreshmanMember(m) && !isAdminMember(m)}
+      />
+      <MemberSection
         title="재학 중인 부원"
         status="재학생"
         icon={School}
@@ -263,11 +289,25 @@ export const CommunityTab = ({ onNavigate = () => { } }: { onNavigate?: (page: s
         filterFn={(m) => isLeaveMember(m) && !isAdminMember(m)}
       />
       <MemberSection
+        title="LAB / 대학원 부원"
+        status="LAB"
+        icon={BookOpen}
+        colorClass="text-indigo-600"
+        filterFn={(m) => isLabMember(m) && !isAdminMember(m)}
+      />
+      <MemberSection
         title="졸업한 부원"
         status="졸업생"
         icon={GraduationCap}
         colorClass="text-slate-400"
         filterFn={(m) => isGraduateMember(m) && !isAdminMember(m)}
+      />
+      <MemberSection
+        title="기타 상태 부원"
+        status="기타"
+        icon={Users}
+        colorClass="text-slate-500"
+        filterFn={(m) => isOtherMember(m) && !isAdminMember(m)}
       />
 
       {members.length === 0 && (

@@ -3,6 +3,7 @@ package kr.co.devsign.devsign_backend.service;
 import jakarta.transaction.Transactional;
 import kr.co.devsign.devsign_backend.dto.admin.AccessLogResponse;
 import kr.co.devsign.devsign_backend.dto.admin.AdminMemberResponse;
+import kr.co.devsign.devsign_backend.dto.admin.AdminPasswordVerifyRequest;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodResponse;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodSaveRequest;
 import kr.co.devsign.devsign_backend.dto.admin.AdminPeriodSubmissionResponse;
@@ -23,11 +24,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +54,7 @@ public class AdminService {
     private final AssemblyReportRepository assemblyReportRepository;
     private final AccessLogService accessLogService;
     private final DiscordBotClient discordBotClient;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     private static final Map<String, String> heroSettings = new ConcurrentHashMap<>();
 
@@ -59,7 +64,13 @@ public class AdminService {
     }
 
     public List<AdminMemberResponse> getAllMembers() {
-        return memberRepository.findAllByOrderByStudentIdDesc().stream()
+        return memberRepository.findByDeletedFalseOrderByStudentIdDesc().stream()
+                .map(this::toAdminMemberResponse)
+                .toList();
+    }
+
+    public List<AdminMemberResponse> getDeletedMembers() {
+        return memberRepository.findByDeletedTrueOrderByDeletedAtDesc().stream()
                 .map(this::toAdminMemberResponse)
                 .toList();
     }
@@ -92,7 +103,7 @@ public class AdminService {
         Map<Integer, AssemblyPeriod> periodByMonth = savedPeriods.stream()
                 .collect(java.util.stream.Collectors.toMap(AssemblyPeriod::getMonth, p -> p, (a, b) -> a));
 
-        long totalCount = memberRepository.count();
+        long totalCount = memberRepository.countByDeletedFalse();
 
         return java.util.Arrays.stream(ACTIVE_MONTHS)
                 .mapToObj(month -> {
@@ -305,22 +316,27 @@ public class AdminService {
 
     public StatusResponse restoreMember(RestoreMemberRequest request, String ip) {
         try {
-            Member member = new Member();
-            member.setId(null);
-            member.setLoginId(request.loginId());
-            member.setPassword(request.password());
-            member.setName(request.name());
-            member.setStudentId(request.studentId());
-            member.setDept(request.dept());
-            member.setInterests(request.interests());
-            member.setDiscordTag(request.discordTag());
-            member.setUserStatus(request.userStatus());
-            member.setRole(request.role());
-            member.setSuspended(request.suspended());
-            member.setProfileImage(request.profileImage());
+            if (request == null) {
+                return StatusResponse.fail("request is required");
+            }
 
-            Member saved = memberRepository.save(member);
-            accessLogService.logByMember(saved, "ACCOUNT_RESTORE", ip);
+            Optional<Member> deletedMemberOpt = Optional.empty();
+            if (request.id() != null) {
+                deletedMemberOpt = memberRepository.findByIdAndDeletedTrue(request.id());
+            }
+            if (deletedMemberOpt.isEmpty() && StringUtils.hasText(request.loginId())) {
+                deletedMemberOpt = memberRepository.findByLoginIdAndDeletedTrue(request.loginId());
+            }
+            if (deletedMemberOpt.isEmpty()) {
+                return StatusResponse.fail("deleted member not found");
+            }
+
+            Member member = deletedMemberOpt.get();
+            member.setDeleted(false);
+            member.setDeletedAt(null);
+            memberRepository.save(member);
+
+            accessLogService.logByMember(member, "ACCOUNT_RESTORE", ip);
             return StatusResponse.success();
 
         } catch (Exception e) {
@@ -337,9 +353,31 @@ public class AdminService {
                             ip
                     );
 
-                    memberRepository.deleteById(id);
+                    if (hard) {
+                        memberRepository.deleteById(id);
+                    } else {
+                        m.setDeleted(true);
+                        m.setDeletedAt(LocalDateTime.now());
+                        memberRepository.save(m);
+                    }
                     return StatusResponse.success();
                 })
+                .orElseGet(() -> StatusResponse.fail("member not found"));
+    }
+
+    public StatusResponse verifyAdminPassword(Authentication authentication, AdminPasswordVerifyRequest request) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            return StatusResponse.fail("unauthorized");
+        }
+        if (request == null || !StringUtils.hasText(request.password())) {
+            return StatusResponse.fail("password is required");
+        }
+
+        String loginId = authentication.getName();
+        return memberRepository.findByLoginId(loginId)
+                .map(member -> passwordEncoder.matches(request.password(), member.getPassword())
+                        ? StatusResponse.success()
+                        : StatusResponse.fail("password mismatch"))
                 .orElseGet(() -> StatusResponse.fail("member not found"));
     }
 
@@ -435,7 +473,8 @@ public class AdminService {
                 member.getUserStatus(),
                 member.getRole(),
                 member.isSuspended(),
-                member.getProfileImage()
+                member.getProfileImage(),
+                member.getDeletedAt() == null ? null : member.getDeletedAt().toString()
         );
     }
 }

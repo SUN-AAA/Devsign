@@ -9,16 +9,21 @@ import java.util.Optional;
 
 @Repository
 public interface MemberRepository extends JpaRepository<Member, Long> {
-
-    // 아이디로 회원 찾기
     Optional<Member> findByLoginId(String loginId);
 
-    // 이름과 학번으로 회원 찾기 (아이디/비번 찾기용)
     Optional<Member> findByNameAndStudentId(String name, String studentId);
 
-    // 디스코드 태그로 회원 찾기
     Optional<Member> findByDiscordTag(String discordTag);
 
-    // 최신학번부터 전체 회원 목록 조회
     List<Member> findAllByOrderByStudentIdDesc();
+
+    List<Member> findByDeletedFalseOrderByStudentIdDesc();
+
+    List<Member> findByDeletedTrueOrderByDeletedAtDesc();
+
+    Optional<Member> findByIdAndDeletedTrue(Long id);
+
+    Optional<Member> findByLoginIdAndDeletedTrue(String loginId);
+
+    long countByDeletedFalse();
 }
