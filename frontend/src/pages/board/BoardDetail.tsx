@@ -11,7 +11,6 @@ import { Button } from "../../components/ui/button";
 export const BoardDetail = ({
   onNavigate,
   post,
-  isAdmin,
   isLoggedIn,
   user,
   setPost,
@@ -53,8 +52,8 @@ export const BoardDetail = ({
 
   if (!post) return <div className="pt-40 text-center text-slate-400 font-bold">게시글을 찾을 수 없습니다.</div>;
 
-  const isAuthor = isLoggedIn && (post.loginId === user?.loginId || post.author === user?.name);
-  const canDelete = isAuthor || isAdmin;
+  const isAuthor = isLoggedIn && post.loginId === user?.loginId;
+  const canDelete = isAuthor;
   const canEdit = isAuthor;
 
   // ✨ 학번 포맷팅 함수 수정 (8자리/2자리/이미 포함된 경우 모두 대응)
@@ -227,7 +226,6 @@ export const BoardDetail = ({
                     postId={post.id}
                     isLoggedIn={isLoggedIn}
                     currentUser={user}
-                    isAdmin={isAdmin}
                     onDelete={() => onDeleteComment(post.id, c.id)}
                     onToggleCommentLike={(commentId: number) => onToggleCommentLike(post.id, commentId)}
                     onAddReply={(content: string) => onAddReply(post.id, c.id, content)}
@@ -250,7 +248,6 @@ export const BoardDetail = ({
 const CommentItem = ({
   comment,
   postId,
-  isAdmin,
   currentUser,
   onDelete,
   onToggleCommentLike,
@@ -263,7 +260,8 @@ const CommentItem = ({
   const [replyContent, setReplyContent] = useState("");
   const [showAllReplies, setShowAllReplies] = useState(false);
 
-  const canDelete = (item: any) => currentUser && (item.loginId === currentUser.loginId || isAdmin);
+  const canDelete = (item: any) =>
+    Boolean(currentUser?.loginId) && Boolean(item?.loginId) && item.loginId === currentUser.loginId;
 
   const replies = comment.replies || [];
   const visibleReplies = showAllReplies ? replies : replies.slice(-2);

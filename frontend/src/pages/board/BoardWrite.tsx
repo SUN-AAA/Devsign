@@ -27,6 +27,13 @@ export const BoardWrite = ({ onNavigate, isAdmin, user, fetchPosts, post }: any)
     }
   }, [post]);
 
+  useEffect(() => {
+    if (post && post.loginId !== user?.loginId) {
+      alert("본인 글만 수정할 수 있습니다.");
+      onNavigate("board-detail", post.id);
+    }
+  }, [post, user?.loginId, onNavigate]);
+
   const categories = isAdmin ? ["회비", "자유", "질문"] : ["자유", "질문"];
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +56,11 @@ export const BoardWrite = ({ onNavigate, isAdmin, user, fetchPosts, post }: any)
   // ✨ [등록하기/수정완료] 버튼 백엔드 연동 로직
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (post && post.loginId !== user?.loginId) {
+      alert("본인 글만 수정할 수 있습니다.");
+      return;
+    }
+
     if (!title.trim() || !content.trim()) {
       alert("제목과 내용을 모두 입력해주세요.");
       return;

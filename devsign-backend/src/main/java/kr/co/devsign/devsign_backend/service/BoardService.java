@@ -23,6 +23,8 @@ import kr.co.devsign.devsign_backend.dto.common.StatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -94,6 +96,8 @@ public class BoardService {
 
     public PostResponse updatePost(Long id, UpdatePostRequest payload, String loginId, String ip) {
         Post post = postRepository.findById(id).orElseThrow();
+        validatePostOwnership(post, loginId);
+
         post.setTitle(payload.title());
         post.setContent(payload.content());
         post.setCategory(payload.category());
@@ -106,6 +110,7 @@ public class BoardService {
     @Transactional
     public StatusResponse deletePost(Long id, String loginId, String ip) {
         Post post = postRepository.findById(id).orElseThrow();
+        validatePostOwnership(post, loginId);
 
         postLikeRepository.deleteByPost(post);
         postViewRepository.deleteByPost(post);
@@ -185,6 +190,8 @@ public class BoardService {
     @Transactional
     public PostResponse deleteComment(Long postId, Long commentId, String loginId, String ip) {
         Comment comment = commentRepository.findById(commentId).orElseThrow();
+        validateCommentOwnership(postId, comment, loginId);
+
         List<Comment> deleteTargets = new ArrayList<>();
         collectCommentsForDelete(comment, deleteTargets);
 
@@ -259,6 +266,22 @@ public class BoardService {
                     );
                 }
             });
+        }
+    }
+
+    private void validatePostOwnership(Post post, String loginId) {
+        if (loginId == null || loginId.isBlank() || !loginId.equals(post.getLoginId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 수정/삭제할 수 있습니다.");
+        }
+    }
+
+    private void validateCommentOwnership(Long postId, Comment comment, String loginId) {
+        if (comment.getPost() == null || !comment.getPost().getId().equals(postId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "해당 게시글의 댓글이 아닙니다.");
+        }
+
+        if (loginId == null || loginId.isBlank() || !loginId.equals(comment.getLoginId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 댓글/대댓글만 삭제할 수 있습니다.");
         }
     }
 
